@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0">
+<title>ลงเวลา VARI</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{--bg:#0A0E1A;--panel:#0F172A;--panel2:#131c30;--line:#27344d;--tx:#e8edf6;--tx2:#9fb0c9;--tx3:#64748b;--blue:#2563EB;--green:#22c55e;--red:#ef4444;--amber:#f59e0b}
+*{box-sizing:border-box}html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--tx);font-family:"Plus Jakarta Sans","Noto Sans Thai",system-ui,sans-serif;display:flex;justify-content:center}
+.wrap{width:100%;max-width:560px;min-height:100dvh;display:flex;flex-direction:column;padding:18px}
+.bar{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.bar .ttl{font-size:18px;font-weight:800}.bar .clock{margin-left:auto;font-size:15px;color:var(--tx2);font-variant-numeric:tabular-nums}
+.conn{font-size:11px;padding:4px 9px;border-radius:20px}.c-on{background:rgba(34,197,94,.12);color:var(--green)}.c-off{background:rgba(245,158,11,.12);color:var(--amber)}
+input{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:13px;color:var(--tx);font-size:15px;margin-bottom:10px;font-family:inherit}
+.btn{width:100%;border:none;border-radius:12px;padding:14px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;color:#fff;background:var(--blue)}
+.err{color:var(--red);font-size:13px;min-height:18px;text-align:center}
+.hint{color:var(--tx3);font-size:12px;margin-bottom:14px}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;overflow-y:auto}
+.emp{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:16px 14px;text-align:left;cursor:pointer;font-family:inherit;color:var(--tx)}
+.emp:active{border-color:var(--blue)}
+.emp .n{font-size:15px;font-weight:700}.emp .d{font-size:11px;color:var(--tx3);margin-top:3px}
+.search{margin-bottom:12px}
+.center{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:6px;text-align:center}
+.who{font-size:22px;font-weight:800}.whod{font-size:13px;color:var(--tx3);margin-bottom:6px}
+.dots{display:flex;gap:14px;margin:14px 0}
+.dot{width:18px;height:18px;border-radius:50%;border:2px solid var(--line2,#27344d);background:transparent}
+.dot.on{background:var(--blue);border-color:var(--blue)}
+.pad{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;width:100%;max-width:300px}
+.key{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;font-size:22px;font-weight:700;cursor:pointer;font-family:inherit;color:var(--tx)}
+.key:active{background:var(--panel2)}.key.fn{font-size:14px;color:var(--tx2)}
+.big{width:100%;max-width:420px;border:none;border-radius:20px;padding:30px;font-size:22px;font-weight:800;cursor:pointer;font-family:inherit;color:#fff;display:flex;flex-direction:column;align-items:center;gap:8px}
+.big.in{background:var(--green)}.big.out{background:var(--amber)}.big.done{background:var(--panel2);color:var(--tx3)}
+.big .ic{width:40px;height:40px;stroke:#fff;fill:none;stroke-width:2}
+.row{display:flex;gap:12px;width:100%;max-width:420px;margin:10px 0}
+.cell{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;text-align:center}
+.cell .t{font-size:11px;color:var(--tx3)}.cell .v{font-size:20px;font-weight:800;margin-top:3px;font-variant-numeric:tabular-nums}
+.cell .v.on{color:var(--green)}.cell .v.out{color:var(--amber)}
+.back{background:none;border:none;color:var(--tx3);font-size:13px;cursor:pointer;font-family:inherit;text-decoration:underline;margin-top:8px}
+.hide{display:none}
+.ok{font-size:46px;color:var(--green)}
+</style>
+</head>
+<body>
+<div class="wrap">
+ <div class="bar"><div class="ttl">ลงเวลา VARI</div><div id="conn" class="conn c-off">…</div><div class="clock" id="clock"></div></div>
+
+ <!-- device login -->
+ <div id="dev">
+  <div class="hint">เปิดเครื่องลงเวลา (ทำครั้งเดียวต่อเครื่อง — บัญชีอุปกรณ์ของบริษัท)</div>
+  <input id="dEmail" type="email" placeholder="อีเมลอุปกรณ์" value="bousamai.btv@gmail.com">
+  <input id="dPwd" type="password" placeholder="รหัสผ่าน">
+  <button class="btn" id="dBtn">เปิดเครื่อง</button>
+  <div class="err" id="dErr"></div>
+ </div>
+
+ <!-- name grid -->
+ <div id="pick" class="hide">
+  <div class="hint">แตะชื่อของคุณ</div>
+  <input id="search" class="search" placeholder="ค้นหาชื่อ...">
+  <div class="grid" id="grid"></div>
+ </div>
+
+ <!-- pin -->
+ <div id="pinView" class="hide center">
+  <div class="who" id="pinName">—</div>
+  <div class="whod" id="pinMsg">ใส่ PIN 4 หลัก</div>
+  <div class="dots" id="dots"></div>
+  <div class="pad" id="pad"></div>
+  <div class="err" id="pinErr"></div>
+  <button class="back" id="pinBack">← กลับ</button>
+ </div>
+
+ <!-- stamp -->
+ <div id="stampView" class="hide center">
+  <div class="who" id="sName">—</div>
+  <div class="whod" id="sDate">—</div>
+  <div class="row">
+   <div class="cell"><div class="t">เข้างาน</div><div class="v" id="inV">—</div></div>
+   <div class="cell"><div class="t">ออกงาน</div><div class="v" id="outV">—</div></div>
+  </div>
+  <button class="big in" id="bigBtn"></button>
+  <div class="err" id="sErr"></div>
+  <button class="back" id="sBack">เสร็จ / กลับหน้าหลัก</button>
+ </div>
+
+ <!-- done flash -->
+ <div id="doneView" class="hide center">
+  <div class="ok">✓</div><div class="who" id="dName">—</div><div class="whod" id="dWhat">—</div>
+ </div>
+</div>
+
+<script>
+var SB_URL='https://ewamrtxrkpicggzknupy.supabase.co';
+var SB_KEY='sb_publishable_nm8oUZTIcRvTbX9YFPmhng_hH3nH8Ov';
+var sb=window.supabase.createClient(SB_URL,SB_KEY);
+var $=function(s){return document.querySelector(s)};
+var EMPS=[], SEL=null, PIN='', MODE='enter', TODAY=todayStr();
+function todayStr(){var n=new Date();return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0');}
+function hhmm(ts){if(!ts)return null;var d=new Date(ts);return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
+function show(id){['dev','pick','pinView','stampView','doneView'].forEach(function(x){$('#'+x).classList.toggle('hide',x!==id);});}
+function conn(c,t){var e=$('#conn');e.className='conn '+c;e.textContent=t;}
+function tick(){var n=new Date();$('#clock').textContent=String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');}
+setInterval(tick,1000);tick();
+async function sha(s){var b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));return Array.from(new Uint8Array(b)).map(function(x){return x.toString(16).padStart(2,'0')}).join('');}
+
+async function loadEmps(){
+ var r=await sb.from('employee').select('id,tenant_id,full_name,name_lo,pin_hash,dept_id').eq('is_active',true);
+ if(r.error){conn('c-off','โหลดรายชื่อไม่ได้: '+r.error.message);return;}
+ EMPS=(r.data||[]).sort(function(a,b){return (a.full_name||'').localeCompare(b.full_name||'')});
+ conn('c-on','พร้อม ✓ · '+EMPS.length+' คน');
+ renderGrid('');show('pick');
+}
+function renderGrid(q){
+ var g=$('#grid');q=q.toLowerCase();
+ g.innerHTML=EMPS.filter(function(e){return !q||(e.full_name||'').toLowerCase().indexOf(q)>-1||(e.name_lo||'').indexOf(q)>-1;})
+  .map(function(e){return '<button class="emp" data-id="'+e.id+'"><div class="n">'+(e.name_lo||e.full_name)+'</div><div class="d">'+(e.full_name||'')+'</div></button>';}).join('')
+  ||'<div style="color:var(--tx3);padding:14px">ไม่พบชื่อ</div>';
+ g.querySelectorAll('.emp').forEach(function(b){b.onclick=function(){openPin(b.dataset.id);};});
+}
+function openPin(id){
+ SEL=EMPS.find(function(e){return e.id===id;});PIN='';
+ MODE=SEL.pin_hash?'enter':'set1';SEL._set1=null;
+ $('#pinName').textContent=SEL.name_lo||SEL.full_name;
+ $('#pinMsg').textContent=SEL.pin_hash?'ใส่ PIN 4 หลัก':'ครั้งแรก: ตั้ง PIN 4 หลักของคุณ';
+ $('#pinErr').textContent='';renderDots();renderPad();show('pinView');
+}
+function renderDots(){$('#dots').innerHTML=[0,1,2,3].map(function(i){return '<div class="dot'+(i<PIN.length?' on':'')+'"></div>';}).join('');}
+function renderPad(){
+ var keys=['1','2','3','4','5','6','7','8','9','ล','0','⌫'];
+ $('#pad').innerHTML=keys.map(function(k){return '<button class="key'+(k==='ล'||k==='⌫'?' fn':'')+'" data-k="'+k+'">'+(k==='ล'?'ล้าง':k)+'</button>';}).join('');
+ $('#pad').querySelectorAll('.key').forEach(function(b){b.onclick=function(){press(b.dataset.k);};});
+}
+async function press(k){
+ if(k==='⌫'){PIN=PIN.slice(0,-1);renderDots();return;}
+ if(k==='ล'){PIN='';renderDots();return;}
+ if(PIN.length>=4)return;
+ PIN+=k;renderDots();
+ if(PIN.length===4){setTimeout(submitPin,150);}
+}
+async function submitPin(){
+ var h=await sha(SEL.id+':'+PIN);
+ if(MODE==='enter'){
+  if(h===SEL.pin_hash){gotoStamp();}
+  else{$('#pinErr').textContent='PIN ไม่ถูก';PIN='';renderDots();}
+ }else if(MODE==='set1'){
+  SEL._set1=h;MODE='set2';PIN='';$('#pinMsg').textContent='ยืนยัน PIN อีกครั้ง';$('#pinErr').textContent='';renderDots();
+ }else if(MODE==='set2'){
+  if(h===SEL._set1){
+   var u=await sb.from('employee').update({pin_hash:h}).eq('id',SEL.id);
+   if(u.error){$('#pinErr').textContent='บันทึก PIN ไม่ได้: '+u.error.message;PIN='';renderDots();return;}
+   SEL.pin_hash=h;gotoStamp();
+  }else{$('#pinErr').textContent='PIN ไม่ตรงกัน ลองใหม่';MODE='set1';PIN='';$('#pinMsg').textContent='ตั้ง PIN 4 หลักของคุณ';renderDots();}
+ }
+}
+async function gotoStamp(){
+ $('#sName').textContent=SEL.name_lo||SEL.full_name;
+ $('#sDate').textContent='วันนี้ '+new Date().toLocaleDateString('th-TH',{weekday:'long',day:'numeric',month:'long'});
+ show('stampView');await loadToday();
+}
+async function loadToday(){
+ var r=await sb.from('attendance').select('check_in_ts,check_out_ts').eq('employee_id',SEL.id).eq('work_date',TODAY).maybeSingle();
+ var ci=r.data&&r.data.check_in_ts,co=r.data&&r.data.check_out_ts;
+ $('#inV').textContent=hhmm(ci)||'—';$('#inV').className='v'+(ci?' on':'');
+ $('#outV').textContent=hhmm(co)||'—';$('#outV').className='v'+(co?' out':'');
+ var b=$('#bigBtn');
+ if(!ci){b.className='big in';b.innerHTML=ic('M5 12l5 5L20 7')+'เข้างาน';b.onclick=function(){stamp('check_in_ts','เข้างาน');};}
+ else if(!co){b.className='big out';b.innerHTML=ic('M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4 M16 17l5-5-5-5 M21 12H9')+'ออกงาน';b.onclick=function(){stamp('check_out_ts','ออกงาน');};}
+ else{b.className='big done';b.innerHTML='เข้า-ออกครบแล้ววันนี้ ✓';b.onclick=null;}
+}
+function ic(p){return '<svg class="ic" viewBox="0 0 24 24"><path d="'+p+'"/></svg>';}
+async function stamp(field,label){
+ $('#sErr').textContent='';
+ var row={tenant_id:SEL.tenant_id,employee_id:SEL.id,work_date:TODAY};row[field]=new Date().toISOString();
+ if(field==='check_in_ts')row.status='present';
+ var r=await sb.from('attendance').upsert(row,{onConflict:'tenant_id,employee_id,work_date'}).select();
+ if(r.error){$('#sErr').textContent='บันทึกไม่ได้: '+r.error.message;return;}
+ $('#dName').textContent=SEL.name_lo||SEL.full_name;$('#dWhat').textContent=label+' '+hhmm(row[field]);
+ show('doneView');setTimeout(function(){home();},2200);
+}
+function home(){SEL=null;PIN='';$('#search').value='';renderGrid('');show('pick');}
+
+$('#dBtn').onclick=async function(){
+ $('#dErr').textContent='';var em=$('#dEmail').value.trim(),pw=$('#dPwd').value;
+ if(!em||!pw){$('#dErr').textContent='กรอกอีเมล+รหัส';return;}
+ $('#dBtn').textContent='...';$('#dBtn').disabled=true;
+ var r=await sb.auth.signInWithPassword({email:em,password:pw});
+ $('#dBtn').textContent='เปิดเครื่อง';$('#dBtn').disabled=false;
+ if(r.error){$('#dErr').textContent='เปิดไม่ได้: '+r.error.message;return;}
+ loadEmps();
+};
+$('#search').oninput=function(){renderGrid(this.value);};
+$('#pinBack').onclick=home;$('#sBack').onclick=home;
+
+sb.auth.getSession().then(function(res){if(res.data&&res.data.session){conn('c-on','พร้อม');loadEmps();}else{conn('c-off','รอเปิดเครื่อง');show('dev');}});
+</script>
+</body>
+</html>
