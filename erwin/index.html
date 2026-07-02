@@ -68,10 +68,11 @@
   @keyframes breathe{0%,100%{transform:translate(-50%,-50%) scale(1)}50%{transform:translate(-50%,-50%) scale(1.07)}}
   .tint{position:absolute;inset:0;filter:hue-rotate(var(--rot,0deg));transition:filter 1s}
   .mascot,.mascot-blur{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;pointer-events:none}
-  .mascot{filter:brightness(calc(.96 + var(--e,.12)*.3)) saturate(1.06)}
-  .mascot-blur{filter:blur(26px) saturate(1.6) brightness(1.3);opacity:calc(.20 + var(--e,.12)*.55);mix-blend-mode:screen}
+  .mascot{display:none} /* v5: รูปคมถูกแทนด้วยอนุภาค — คงไว้เป็น source สำหรับ sampling+blur */
+  #mcv{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+  .mascot-blur{display:block;filter:blur(26px) saturate(1.55) brightness(1.25);opacity:calc(.24 + var(--e,.12)*.45);mix-blend-mode:screen}
   .scanband{position:absolute;left:5%;right:5%;height:11%;top:-12%;mix-blend-mode:screen;pointer-events:none;
-    background:linear-gradient(180deg,transparent,rgba(150,215,255,.22),transparent);animation:sweep 5.4s linear infinite}
+    background:linear-gradient(180deg,transparent,rgba(150,215,255,.13),transparent);animation:sweep 5.4s linear infinite}
   @keyframes sweep{0%{top:-12%}100%{top:104%}}
   .scantex{position:absolute;inset:0;mix-blend-mode:screen;pointer-events:none;opacity:.45;
     background:repeating-linear-gradient(0deg,rgba(150,210,255,.05) 0 1px,transparent 1px 4px)}
@@ -176,6 +177,125 @@ addEventListener('resize',resize);resize();
   const b=m.cloneNode(); b.className='mascot-blur'; b.alt='';
   m.parentNode.insertBefore(b,m);})();
 
+/* ==========================================================
+   v5 — mascot กลายเป็น "ดอท+เส้น" มีชีวิตจริง (2026-07-02)
+   สุ่มเก็บพิกเซลสว่างจากภาพต้นฉบับ → อนุภาคหลายพันเม็ด (สี/ตำแหน่ง
+   ตามภาพเป๊ะ) + เส้นใยเชื่อมเพื่อนบ้าน · สปริงกลับบ้าน · คลื่นพลังงาน
+   วิ่งผ่าน · ระยิบ · หลบนิ้ว · จิ้ม=กระจายแล้วรวมร่าง · assemble ตอนเกิด
+   ========================================================== */
+const mhash=i=>{const s=Math.sin(i*127.1+311.7)*43758.5453; return s-Math.floor(s);};
+const tintEl=document.querySelector('.tint');
+const mcv=document.createElement('canvas'); mcv.id='mcv'; tintEl.appendChild(mcv);
+const mctx=mcv.getContext('2d');
+let MW=0,MH=0;
+function sizeMascot(){const r=document.getElementById('stage').getBoundingClientRect();
+  MW=mcv.width=Math.max(2,r.width*DPR); MH=mcv.height=Math.max(2,r.height*DPR);
+  mcv.style.width=r.width+'px'; mcv.style.height=r.height+'px';}
+addEventListener('resize',sizeMascot);
+
+/* อนุภาค: home(hx,hy) + ตำแหน่งจริง(px,py) + ความเร็ว + สีจากภาพ */
+let P=[], EDGES=[], built=false;
+function buildParticles(){
+  const img=document.querySelector('img.mascot');
+  if(!img.naturalWidth){ img.addEventListener('load',buildParticles,{once:true}); return; }
+  sizeMascot();
+  const G=300, oc=document.createElement('canvas'); oc.width=G; oc.height=G;
+  const og=oc.getContext('2d'); og.drawImage(img,0,0,G,G);
+  const d=og.getImageData(0,0,G,G).data;
+  const vmin=Math.min(innerWidth||360,innerHeight||640);
+  const TARGET=vmin<520?3000:5200;
+  const cand=[];
+  for(let y=0;y<G;y+=1){for(let x=0;x<G;x+=1){
+    const i=(y*G+x)*4, r=d[i],g=d[i+1],b=d[i+2];
+    const lum=(0.2126*r+0.7152*g+0.0722*b)/255;
+    if(lum>0.10) cand.push({x:x/G,y:y/G,r,g,b,lum});
+  }}
+  // เก็บถ่วงน้ำหนักตามความสว่าง (เส้น/ประกายเด่นก่อน)
+  let wsum=0;
+  for(const c of cand){
+    c.w=Math.pow(c.lum,2.1);
+    const fdx=(c.x-0.505)/0.14, fdy=(c.y-0.405)/0.14;      // โซนใบหน้า
+    if(fdx*fdx+fdy*fdy<1) c.w*=3.2;
+    wsum+=c.w;
+  }
+  P=[];
+  const step=wsum/TARGET; let acc=step*mhash(99);
+  for(const c of cand){ acc-=c.w;
+    if(acc<=0){ acc+=step;
+      P.push({hx:c.x,hy:c.y,
+        px:0.5+(mhash(P.length*3+1)-0.5)*1.6, py:0.5+(mhash(P.length*7+2)-0.5)*1.6,
+        vx:0,vy:0, lum:c.lum, ph:mhash(P.length*13+5)*6.283,
+        pre:`rgba(${c.r},${c.g},${c.b},`});
+    }}
+  // เส้นใยเชื่อมเพื่อนบ้าน (คำนวณครั้งเดียวด้วย grid)
+  const CELL=0.024, grid=new Map();
+  const key=(cx,cy)=>cx+':'+cy;
+  P.forEach((q,i)=>{const cx=(q.hx/CELL)|0, cy=(q.hy/CELL)|0;
+    const k=key(cx,cy); (grid.get(k)||grid.set(k,[]).get(k)).push(i);});
+  EDGES=[]; const R2=CELL*CELL*1.1;
+  P.forEach((q,i)=>{ if(EDGES.length>TARGET*0.75) return;
+    let links=0;
+    const cx=(q.hx/CELL)|0, cy=(q.hy/CELL)|0;
+    for(let ox=0;ox<=1&&links<2;ox++)for(let oy=(ox?-1:1);oy<=1&&links<2;oy+=2){
+      const cell=grid.get(key(cx+ox,cy+oy)); if(!cell)continue;
+      for(const j of cell){ if(j<=i)continue;
+        const dx=q.hx-P[j].hx, dy=q.hy-P[j].hy;
+        if(dx*dx+dy*dy<R2){EDGES.push([i,j]); if(++links>=2)break;}
+      }}});
+  built=true;
+}
+buildParticles();
+
+/* นิ้ว/เมาส์ = สนามพลังผลัก (แตะแสงแล้วแสงหลบ) */
+let ptrX=-9, ptrY=-9;
+addEventListener('pointermove',ev=>{
+  const r=mcv.getBoundingClientRect(); if(!r.width)return;
+  ptrX=(ev.clientX-r.left)/r.width; ptrY=(ev.clientY-r.top)/r.height;
+},{passive:true});
+addEventListener('pointerleave',()=>{ptrX=ptrY=-9});
+let burst=0;                                   // แรงระเบิดตอนจิ้ม (สลายเอง)
+const oldPoke=poke;
+poke=function(){ oldPoke(); burst=1; };
+
+function renderMascot(e,hue){
+  if(!built||!MW)return;
+  mctx.clearRect(0,0,MW,MH);
+  mctx.globalCompositeOperation='lighter';
+  const asleep=sleeping?0.35:1;
+  const jAmp=(0.0016+e*0.0035)*asleep;         // ระยิบแรงขึ้นตอนคุย
+  const waveR=((t*0.22)%1.5);                  // คลื่นพลังงานวิ่งจากกลางตัว
+  burst*=0.90;
+  // เส้นใย (วาดเป็น path เดียว = เร็ว)
+  mctx.beginPath();
+  for(const [i,j] of EDGES){
+    mctx.moveTo(P[i].px*MW,P[i].py*MH); mctx.lineTo(P[j].px*MW,P[j].py*MH);}
+  mctx.strokeStyle=`hsla(${hue},85%,78%,${(0.08+e*0.06)*asleep})`;
+  mctx.lineWidth=0.8*DPR; mctx.stroke();
+  // ดอท
+  for(const q of P){
+    // สปริงกลับบ้าน + แรงผลักจากนิ้ว + burst
+    let ax=(q.hx-q.px)*0.05, ay=(q.hy-q.py)*0.05;
+    const dxp=q.px-ptrX, dyp=q.py-ptrY, dp2=dxp*dxp+dyp*dyp;
+    if(dp2<0.016){const f=(0.016-dp2)*1.15/Math.max(0.05,Math.sqrt(dp2));
+      ax+=dxp*f; ay+=dyp*f;}
+    if(burst>0.02){const dxb=q.px-0.5, dyb=q.py-0.47;
+      const db=Math.max(0.08,Math.hypot(dxb,dyb));
+      ax+=dxb/db*burst*0.05; ay+=dyb/db*burst*0.05;}
+    q.vx=(q.vx+ax)*0.86; q.vy=(q.vy+ay)*0.86;
+    q.px+=q.vx; q.py+=q.vy;
+    // คลื่น + ระยิบ
+    const dw=Math.hypot(q.hx-0.5,q.hy-0.47);
+    const wave=Math.exp(-Math.pow((dw-waveR)*9,2));
+    const tw=0.55+0.45*Math.sin(t*2.2+q.ph);
+    const jx=Math.sin(t*1.4+q.ph)*jAmp, jy=Math.cos(t*1.1+q.ph*1.7)*jAmp;
+    const al=Math.min(1,(0.38+q.lum*0.62)*tw*(0.85+e*0.5)*asleep+wave*0.55);
+    const sz=(0.7+q.lum*1.8)*(1+wave*0.8+e*0.25)*DPR;
+    mctx.fillStyle=q.pre+al.toFixed(3)+')';
+    mctx.beginPath(); mctx.arc((q.px+jx)*MW,(q.py+jy)*MH,sz,0,7); mctx.fill();
+  }
+  mctx.globalCompositeOperation='source-over';
+}
+
 /* พลังงาน + สี ตามสถานะ (ขับ CSS vars) */
 let energy=0.12,target=0.12,t=0; const setTarget=v=>target=v;
 
@@ -223,6 +343,7 @@ function draw(){
     const tw=0.35+0.65*Math.abs(Math.sin(t*1.8+m.ph));
     ctx.fillStyle=`hsla(${hue},85%,80%,${(0.10+0.30*tw)*(sleeping?0.4:1)})`;
     ctx.beginPath();ctx.arc(m.x*W+Math.sin(t+m.ph)*6*DPR, m.y*H, m.s*DPR,0,7);ctx.fill();}
+  renderMascot(e,hue);
   requestAnimationFrame(draw);
 }
 draw();
