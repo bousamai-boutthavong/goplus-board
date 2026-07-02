@@ -173,20 +173,24 @@ function resize(){DPR=Math.min(devicePixelRatio||1,2);
 addEventListener('resize',resize);resize();
 
 /* ==========================================================
-   v9 — Cosmic Core (2026-07-02)
-   ตามสั่ง Bou: ไม่เอาหุ่น/แขน/หัว/ตา/สปอตไลท์ — เหลือ "แก่นหัวใจ"
-   กระสุนวงจักรขยายใหญ่กลางจอ รายล้อมด้วยเม็ดอนุภาคน้อยใหญ่นับพัน
-   โคจรหลายระนาบแบบกาแล็กซี · ปฏิกิริยาครบ: เสียง/นิ้ว/กล้อง/จิ้ม/หลับ
+   v10 — LIVING COSMOS (สร้างคืนที่ Bou หลับ · 2026-07-03)
+   9 มหัศจรรย์: หางแสงทั้งจักรวาล · เวลายืด-หด · อารมณ์รายวัน (seed
+   ตามวันที่) · กดค้างชาร์จ→คลื่นกระแทก · สะบัด=ขว้างดาวหางวนแก่น ·
+   เป่าไมค์=พายุสุริยะ · ดับเบิลแท็ป=แปลงร่างกาแล็กซี 6 แบบ ·
+   เหตุการณ์ฟ้าสุ่ม (ดาวตก/ฝนดาว/ดาวหาง/ออโรร่า/ซูเปอร์โนวา) ·
+   ท่าประจำตัวตอนว่าง (ripple/ถอนหายใจ/เหลือบมอง/สะอึก)
    ========================================================== */
 const mhash=i=>{const s=Math.sin(i*127.1+311.7)*43758.5453; return s-Math.floor(s);};
 const tintEl=document.querySelector('.tint');
 const mcv=document.createElement('canvas'); mcv.id='mcv'; tintEl.appendChild(mcv);
 const mctx=mcv.getContext('2d');
+const ACC=document.createElement('canvas'); const actx=ACC.getContext('2d');
 let MW=0,MH=0,MDPR=1;
 function sizeMascot(){const r=document.getElementById('stage').getBoundingClientRect();
   const vmin=Math.min(innerWidth||360,innerHeight||640);
   MDPR=Math.min(DPR, vmin<520?1.6:2);
-  MW=mcv.width=Math.max(2,r.width*MDPR); MH=mcv.height=Math.max(2,r.height*MDPR);
+  MW=mcv.width=ACC.width=Math.max(2,r.width*MDPR);
+  MH=mcv.height=ACC.height=Math.max(2,r.height*MDPR);
   mcv.style.width=r.width+'px'; mcv.style.height=r.height+'px';}
 addEventListener('resize',sizeMascot); sizeMascot();
 
@@ -199,7 +203,7 @@ const SPR=[[120,195,255],[60,145,250],[228,246,255]].map(([r,g,b])=>{
   gr.addColorStop(1,'rgba(0,0,0,0)');
   g2.fillStyle=gr;g2.fillRect(0,0,32,32);return c;});
 
-/* ---------- แก่นหัวใจ (วงจักรใหญ่) ---------- */
+/* ---------- แก่น + ฝูง (จาก v9) ---------- */
 const CORE={cx:0.5,cy:0.475,r:0.16};
 const THREADS=[];
 for(let i=0;i<30;i++)THREADS.push({
@@ -207,40 +211,136 @@ for(let i=0;i<30;i++)THREADS.push({
   sp:(0.45+mhash(i*7+42)*1.35)*(mhash(i*11+43)>0.5?1:-1),
   rr:0.55+mhash(i*13+44)*0.50, span:1.5+mhash(i*17+45)*2.8,
   ph:mhash(i*19+46)*6.283});
-
-/* ---------- ฝูงอนุภาคnับพัน โคจรรอบแก่น ---------- */
 const vmin0=Math.min(innerWidth||360,innerHeight||640);
 const N=vmin0<520?1900:2700;
 const P=[];
 for(let i=0;i<N;i++){
-  const disc=mhash(i*3+1)<0.42;                       // 42% = จานวงแหวนเอียง · ที่เหลือ = ทรงกลมฟุ้ง
+  const disc=mhash(i*3+1)<0.42;
   const incl=disc?(1.22+(mhash(i*5+2)-0.5)*0.3):(mhash(i*5+2)*3.1416);
   const orad=CORE.r*(0.6+Math.pow(mhash(i*7+3),1.55)*3.1);
   P.push({
     ang:mhash(i*11+4)*6.2832, incl, orad,
     w:(0.0018+0.0012/Math.max(0.12,orad))*(mhash(i*13+5)>0.5?1:-1),
-    big:mhash(i*17+6)<0.055,                          // เม็ดใหญ่ bokeh ~5%
-    lum:0.25+mhash(i*19+7)*0.75,
-    ph:mhash(i*23+8)*6.283,
-    delay:mhash(i*29+9)*1.2,
+    big:mhash(i*17+6)<0.055, lum:0.25+mhash(i*19+7)*0.75,
+    ph:mhash(i*23+8)*6.283, delay:mhash(i*29+9)*1.2,
     px:0.5+(mhash(i*31+10)-0.5)*1.6, py:0.5+(mhash(i*37+11)-0.5)*1.6,
-    vx:0,vy:0,hx:0.5,hy:0.5,zd:0});
+    vx:0,vy:0,hx:0.5,hy:0.5,zd:0,
+    inForm:mhash(i*41+12)<0.46, tx:0,ty:0});
 }
 
-/* ---------- ปฏิสัมพันธ์ ---------- */
-let ptrX=-9,ptrY=-9;
+/* ---------- TimeScale (ลมหายใจของเวลา) ---------- */
+let TS=1, tsSeq=null;
+function timeDip(low,holdMs,overshoot){
+  const n=performance.now();
+  tsSeq=[{at:n,v:TS},{at:n+700,v:low},{at:n+700+holdMs,v:low},
+         {at:n+1200+holdMs,v:overshoot||1.22},{at:n+1800+holdMs,v:1}];}
+function updateTS(){ if(!tsSeq)return;
+  const n=performance.now();
+  if(n>=tsSeq[tsSeq.length-1].at){TS=1;tsSeq=null;return;}
+  for(let i=1;i<tsSeq.length;i++){ if(n<=tsSeq[i].at){
+    const a=tsSeq[i-1],b=tsSeq[i],u=(n-a.at)/Math.max(1,b.at-a.at);
+    const s=u<0.5?4*u*u*u:1-Math.pow(-2*u+2,3)/2;
+    TS=a.v+(b.v-a.v)*s; return;}}}
+
+/* ---------- Mood รายวัน (seed ตามวันที่) ---------- */
+const daySeed=(()=>{let h=0;for(const c of new Date().toDateString())h=(h*31+c.charCodeAt(0))>>>0;return h%1000;})();
+const mood={energy:0.5,curious:0.5,calm:0.5};
+function updateMood(){const n=Date.now();
+  mood.energy=0.5+0.3*Math.sin(n*0.00011+daySeed)+0.2*Math.sin(n*0.00007+daySeed*1.7);
+  mood.curious=0.5+0.3*Math.sin(n*0.00013+daySeed*0.6)+0.2*Math.sin(n*0.00005+daySeed*2.3);
+  mood.calm=0.5+0.3*Math.sin(n*0.00009+daySeed*1.2)+0.2*Math.sin(n*0.000063+daySeed*0.4);}
+
+/* ---------- คลาสกลาง: ดาวหาง + คลื่นกระแทก ---------- */
+const COMETS=[],SHOCKS=[];
+function spawnComet(x,y,vx,vy,grav,life){
+  if(COMETS.length>=5)COMETS.shift();
+  COMETS.push({x,y,vx,vy,grav,life:life||6,age:0,hist:[]});}
+function spawnShock(x,y,power){ SHOCKS.push({x,y,r:0.02,power,age:0}); timeDip(0.3,120); }
+function spawnMeteor(){ const edge=(Math.random()*4)|0;
+  const sp=2.4+Math.random()*1.2;
+  let x,y,vx,vy;
+  if(edge===0){x=-0.1;y=Math.random();vx=sp;vy=(Math.random()-0.5)*1.4;}
+  else if(edge===1){x=1.1;y=Math.random();vx=-sp;vy=(Math.random()-0.5)*1.4;}
+  else if(edge===2){x=Math.random();y=-0.1;vx=(Math.random()-0.5)*1.4;vy=sp;}
+  else {x=Math.random();y=1.1;vx=(Math.random()-0.5)*1.4;vy=-sp;}
+  spawnComet(x,y,vx,vy,false,2.2);}
+
+/* ---------- แปลงร่างกาแล็กซี (formation engine) ---------- */
+const FSEL=P.filter(q=>q.inForm);
+let FORM={on:false,w:0,kind:-1,until:0};
+function shapePoints(kind,K){const pts=[],c=CORE;
+  for(let i=0;i<K;i++){const u=i/K;let x=0,y=0;
+    if(kind===0){const arm=i%2,th=u*11.3;const r=0.05+th*0.026;
+      x=Math.cos(th+arm*3.1416)*r; y=Math.sin(th+arm*3.1416)*r*0.8;}
+    else if(kind===1){const ring=i%3,r=[0.15,0.24,0.33][ring];
+      const a=u*18.85+ring*2.1; x=Math.cos(a)*r; y=Math.sin(a)*r*0.62;}
+    else if(kind===2){const s=i%2, yy=-0.32+u*0.64;
+      x=Math.sin(yy*9.5+s*3.1416)*0.14; y=yy;}
+    else if(kind===3){const e=i%3, a=u*18.85, tl=e*1.047;
+      const ex=Math.cos(a)*0.31, ey=Math.sin(a)*0.105;
+      x=ex*Math.cos(tl)-ey*Math.sin(tl); y=ex*Math.sin(tl)+ey*Math.cos(tl);}
+    else if(kind===4){const a=u*6.2832;
+      x=0.020*Math.pow(Math.sin(a),3)*16;
+      y=-0.020*(13*Math.cos(a)-5*Math.cos(2*a)-2*Math.cos(3*a)-Math.cos(4*a));}
+    else {const inner=i%10<3, a=u*6.2832;
+      if(inner){x=Math.cos(a)*0.09;y=Math.sin(a)*0.09;}
+      else{const b=(u*2)%1*6.2832? a*2:a*2; x=Math.cos(a)*0.34; y=Math.sin(a)*0.34*Math.abs(Math.sin(a))*0.55+Math.sin(a)*0.06;}}
+    pts.push({x:c.cx+x,y:c.cy+y});}
+  return pts;}
+function startFormation(){
+  let k;do{k=(Math.random()*6)|0}while(k===FORM.kind);
+  const pts=shapePoints(k,FSEL.length);
+  FSEL.forEach((q,i)=>{q.tx=pts[i].x;q.ty=pts[i].y;});
+  FORM={on:true,w:FORM.w,kind:k,until:performance.now()+20000};}
+function endFormation(){FORM.on=false;}
+
+/* ---------- Gesture: แตะ/ดับเบิลแท็ป/กดค้างชาร์จ/สะบัด ---------- */
+let ptrX=-9,ptrY=-9,pDown=false,pMoved=false,pDownT=0,pDownX=0,pDownY=0;
+let charge=0,charging=false,lastTapT=0,lastTapX=0,lastTapY=0,tapTimer=null;
+const pHist=[];
+function toStage(ev){const r=mcv.getBoundingClientRect();
+  return r.width?{x:(ev.clientX-r.left)/r.width,y:(ev.clientY-r.top)/r.height}:{x:-9,y:-9};}
+function uiTarget(ev){return ev.target&&ev.target.closest&&ev.target.closest('.bar,.cam,button,input');}
 addEventListener('pointermove',ev=>{
-  const r=mcv.getBoundingClientRect(); if(!r.width)return;
-  ptrX=(ev.clientX-r.left)/r.width; ptrY=(ev.clientY-r.top)/r.height;
+  const s=toStage(ev); ptrX=s.x; ptrY=s.y;
+  pHist.push({x:s.x,y:s.y,t:performance.now()}); if(pHist.length>6)pHist.shift();
+  if(pDown&&Math.hypot(s.x-pDownX,s.y-pDownY)>0.035)pMoved=true;
 },{passive:true});
-const clearPtr=()=>{ptrX=ptrY=-9};
-addEventListener('pointerleave',clearPtr); addEventListener('pointerup',clearPtr);
-addEventListener('pointercancel',clearPtr); addEventListener('touchend',clearPtr,{passive:true});
+addEventListener('pointerdown',ev=>{ if(uiTarget(ev))return;
+  const s=toStage(ev); pDown=true; pMoved=false; pDownT=performance.now();
+  pDownX=s.x; pDownY=s.y; markAlive&&markAlive();},{passive:true});
+function releasePtr(ev){
+  if(pDown&&!uiTarget(ev)){
+    const n=performance.now(), held=n-pDownT;
+    if(charging&&charge>0.15){ spawnShock(ptrX,ptrY,charge); }
+    else if(pMoved&&pHist.length>=2){                    // สะบัด = ขว้างดาวหาง
+      const a=pHist[0],b=pHist[pHist.length-1],dt=Math.max(16,b.t-a.t)/1000;
+      const vx=(b.x-a.x)/dt, vy=(b.y-a.y)/dt, sp=Math.hypot(vx,vy);
+      if(sp>1.5){const cl=Math.min(3.6,sp*0.9)/sp; spawnComet(b.x,b.y,vx*cl,vy*cl,true,6);} }
+    else if(!pMoved&&held<250){                          // แท็ป → เช็คดับเบิล
+      if(n-lastTapT<270&&Math.hypot(pDownX-lastTapX,pDownY-lastTapY)<0.09){
+        clearTimeout(tapTimer); tapTimer=null; lastTapT=0;
+        FORM.on?startFormation():startFormation();       // ดับเบิลแท็ป = แปลงร่าง/สลับร่าง
+      }else{
+        lastTapT=n; lastTapX=pDownX; lastTapY=pDownY;
+        clearTimeout(tapTimer);
+        tapTimer=setTimeout(()=>{ if(FORM.on){endFormation();}
+          poke(); convo?stopConvo():startConvo(); },270); // แท็ปเดี่ยว (หน่วงเช็คดับเบิล)
+      }
+    }
+  }
+  pDown=false; charging=false; charge=0; ptrX=ptrY=-9; pHist.length=0;
+}
+addEventListener('pointerup',releasePtr); addEventListener('pointercancel',releasePtr);
+addEventListener('pointerleave',()=>{ptrX=ptrY=-9});
+/* กันแท็ปเดิมของ engine เก่า (จัดการเองหมดแล้ว) */
+for(const el of [document.getElementById('stage'),cv])
+  el.addEventListener('click',ev=>{ev.stopImmediatePropagation();},true);
 let burst=0;
 const oldPoke=poke;
 poke=function(){ oldPoke(); burst=1; };
 
-/* ---------- เสียง + กล้อง ---------- */
+/* ---------- เสียง TTS + กล้อง + เป่าไมค์ ---------- */
 let voice=0,vAnalyser=null,vData=null,vActx=null;
 function hookAudioAnalyser(audioEl){
   try{
@@ -267,80 +367,236 @@ setInterval(()=>{
     prevFrame=d.slice();
   }catch(e){}
 },160);
+let micFreq=null, storm=0, stormVec={x:0,y:0}, stormHold=0;
+function updateStorm(){
+  try{
+    if(!analyser){storm*=0.96;return;}
+    micFreq=micFreq||new Uint8Array(analyser.frequencyBinCount);
+    analyser.getByteFrequencyData(micFreq);
+    let sum=0,logsum=0,n=micFreq.length;
+    for(let i=0;i<n;i++){const v=micFreq[i]/255+1e-4;sum+=v;logsum+=Math.log(v);}
+    const am=sum/n, gm=Math.exp(logsum/n), flat=gm/am, rms=am;
+    if(rms>0.22&&flat>0.5){stormHold+=16; if(stormHold>200&&storm<0.1){
+      const a=Math.random()*6.2832; stormVec={x:Math.cos(a),y:Math.sin(a)};}
+      if(stormHold>200)storm=Math.min(1,rms*2.2);}
+    else{stormHold=Math.max(0,stormHold-40); storm*=0.94;}
+  }catch(e){storm*=0.96;}
+}
+
+/* ---------- เหตุการณ์ฟ้า + นิสัยตอนว่าง ---------- */
+let evClock=0, evNext=30+Math.random()*40, lastEvent='', lastNovaT=-1e9;
+let aurora=0, auroraAng=0, auroraPos=-0.3, novaPhase=0, novaT0=0, flash=0;
+let quirkClock=0, quirkNext=12+Math.random()*13, quirkFn=null, quirkT0=0;
+function triggerSupernova(){ if(novaPhase)return; novaPhase=1; novaT0=performance.now(); lastNovaT=novaT0; }
+function pickCelestial(){
+  const r=Math.random();
+  const canNova=(performance.now()-lastNovaT)>480000;
+  let ev = r<0.45?'meteor': r<0.65?'shower': r<0.85?'orbitcomet': (r<0.95||!canNova)?'aurora':'nova';
+  if(ev===lastEvent)ev='meteor';
+  lastEvent=ev;
+  if(ev==='meteor')spawnMeteor();
+  else if(ev==='shower'){const k=3+(Math.random()*4|0);
+    for(let i=0;i<k;i++)setTimeout(spawnMeteor,i*(250+Math.random()*350));}
+  else if(ev==='orbitcomet'){const a=Math.random()*6.2832;
+    spawnComet(CORE.cx+Math.cos(a)*0.55,CORE.cy+Math.sin(a)*0.55,
+      -Math.sin(a)*1.3,Math.cos(a)*1.3,true,7);}
+  else if(ev==='aurora'){aurora=1;auroraAng=Math.random()*3.1416;auroraPos=-0.35;}
+  else triggerSupernova();
+}
+
+/* ---------- fps guard ---------- */
+let lastFrame=performance.now(), fpsAvg=60, degrade=0;
 
 let bornT=-1;
 function renderMascot(e,hue){
   if(!MW)return;
   if(bornT<0)bornT=t;
+  const now=performance.now(), dtR=Math.min(0.05,(now-lastFrame)/1000); lastFrame=now;
+  fpsAvg+=((1/Math.max(0.001,dtR))-fpsAvg)*0.05;
+  degrade=fpsAvg<45?Math.min(1,degrade+dtR):Math.max(0,degrade-dtR*0.5);
+  updateTS(); updateMood(); updateStorm();
   if(vAnalyser&&isSpeaking){ vAnalyser.getByteFrequencyData(vData);
     let s=0; for(let i=1;i<vData.length;i++)s+=vData[i];
     voice=Math.max(voice,(s/vData.length/255)*2.0);}
   voice*=0.90; burst*=0.90;
   excite+=(exciteT-excite)*0.06;
-  const V=(curState==='speaking'?voice:voice*0.4)+excite*0.8;
+  const V=(curState==='speaking'?voice:voice*0.4)+excite*0.8+storm*0.5;
   const asleep=sleeping?0.35:1;
   const age=t-bornT;
+  const interacting=pDown||V>0.15||curState!=='standby';
+  /* ตารางเหตุการณ์ (เดินด้วย dt กันถล่มตอนสลับแท็บ) */
+  if(!sleeping&&!interacting){evClock+=dtR; quirkClock+=dtR;}
+  if(evClock>evNext){evClock=0;evNext=25+Math.random()*45; if(!degrade)pickCelestial();}
+  if(quirkClock>quirkNext&&!novaPhase&&!FORM.on){quirkClock=0;quirkNext=10+Math.random()*15;
+    const r=Math.random()*(1+mood.energy*0.5);
+    quirkFn=r<0.3?'ripple':r<0.55?'sigh':r<0.75?'glance':r<0.9?'hiccup':'meteor';
+    quirkT0=now; if(quirkFn==='meteor'){spawnMeteor();quirkFn=null;}}
+  if(interacting)quirkFn=null;
+  const qAge=(now-quirkT0)/1000;
+  if(qAge>2)quirkFn=null;
+  /* charge */
+  if(pDown&&!pMoved&&(now-pDownT)>250){charging=true;
+    charge=Math.min(1,charge+dtR/2.5); markNow&&markNow();}
+  /* mood mapping */
+  const spinMood=0.7+0.6*mood.energy;
+  const moodHue=(mood.curious-0.5)*24;
+  /* supernova timeline */
+  let novaPull=0;
+  if(novaPhase===1){const u=(now-novaT0)/1600;
+    if(u>=1){novaPhase=2;novaT0=now;flash=0.55;spawnShock(CORE.cx,CORE.cy,1);}
+    else novaPull=u*0.9;}
+  if(novaPhase===2&&(now-novaT0)>600)novaPhase=0;
+  flash*=0.88;
+  /* aurora sweep */
+  if(aurora>0){auroraPos+=dtR*0.22; if(auroraPos>1.35)aurora=0;}
+  /* formation */
+  if(FORM.on&&now>FORM.until)endFormation();
+  FORM.w+=((FORM.on?1:0)-FORM.w)*(FORM.on?0.045:0.035);
+
   const sway=Math.sin(t*0.42)*0.026+Math.sin(t*0.17)*0.013;
   const swayY=Math.cos(t*0.31)*0.014;
-  const breath=1+Math.sin(t*1.05)*0.015+V*0.015;
+  const breath=1+Math.sin(t*(1.05*(1.2-0.4*mood.calm)))*0.015+V*0.015;
   const driftX=Math.sin(t*0.37)*0.014+Math.sin(t*0.13)*0.009;
   const driftY=Math.cos(t*0.29)*0.012+Math.sin(t*0.51)*0.006+(1-asleep)*0.04;
-  const spin=(1+V*2.4+excite*1.6+e*0.5)*(sleeping?0.3:1);
-  mctx.clearRect(0,0,MW,MH);
-  mctx.globalCompositeOperation='lighter';
+  let sysScale=1;
+  if(quirkFn==='sigh')sysScale=qAge<0.8?1+qAge*0.075:(qAge<2?1.06-(qAge-0.8)*0.0667:1);
+  const spin=(1+V*2.4+excite*1.6+e*0.5)*spinMood*(sleeping?0.3:1);
+  const hue2=hue+moodHue;
 
-  /* ฮาโลรอบแก่น (แทนสปอตไลท์เดิม — กลมกลืน ไม่มีลำแสง) */
+  /* ---- หางแสง: fade สะสมแทน clear ---- */
+  let trailFade=0.30;
+  if(curState==='thinking')trailFade=0.12;
+  if(curState==='speaking')trailFade=0.34;
+  if(sleeping)trailFade=0.08;
+  if(TS<0.5)trailFade=0.09;
+  if(novaPhase)trailFade=0.10;
+  if(degrade>0.5)trailFade=Math.max(trailFade,0.4);
+  trailFade=Math.max(0.08,trailFade);
+  actx.globalCompositeOperation='destination-out';
+  actx.fillStyle=`rgba(0,0,0,${trailFade})`;
+  actx.fillRect(0,0,MW,MH);
+  actx.globalCompositeOperation='lighter';
+  const aComp=Math.min(1,0.3+trailFade*1.6);
+
   const oc={x:(0.5+(CORE.cx-0.5)*breath+driftX)*MW, y:(0.47+(CORE.cy-0.47)*breath+driftY)*MH};
-  const orbR=CORE.r*MW*breath*(1+V*0.16+burst*0.25);
-  const halo=mctx.createRadialGradient(oc.x,oc.y,0,oc.x,oc.y,orbR*3.1);
-  halo.addColorStop(0,`hsla(${hue},85%,60%,${(0.16+V*0.10)*asleep})`);
-  halo.addColorStop(0.45,`hsla(${hue},85%,55%,${0.06*asleep})`);
-  halo.addColorStop(1,'hsla(0,0%,0%,0)');
-  mctx.fillStyle=halo; mctx.beginPath(); mctx.arc(oc.x,oc.y,orbR*3.1,0,7); mctx.fill();
+  const orbR=CORE.r*MW*breath*sysScale*(1+V*0.16+burst*0.25+(novaPhase===1?novaPull*0.5:0));
 
-  /* ฝูงอนุภาคโคจร */
+  /* คลื่นกระแทก */
+  for(let i=SHOCKS.length-1;i>=0;i--){const s=SHOCKS[i];
+    s.age+=dtR; s.r+=dtR*2.3;
+    if(s.r>1.6){SHOCKS.splice(i,1);continue;}
+    const al=Math.max(0,0.6*(1-s.r/1.6))*s.power;
+    actx.strokeStyle=`hsla(${hue2},90%,80%,${al})`;
+    actx.lineWidth=(14-10*s.r)*MDPR;
+    actx.beginPath(); actx.arc(s.x*MW,s.y*MH,s.r*MW,0,7); actx.stroke();}
+
+  /* ดาวหาง */
+  for(let i=COMETS.length-1;i>=0;i--){const c=COMETS[i];
+    c.age+=dtR;
+    if(c.grav){const dx=CORE.cx-c.x,dy=CORE.cy-c.y,d=Math.max(0.11,Math.hypot(dx,dy));
+      const g=0.62/(d*d); c.vx+=dx/d*g*dtR; c.vy+=dy/d*g*dtR;}
+    c.x+=c.vx*dtR*TS; c.y+=c.vy*dtR*TS;
+    c.hist.push({x:c.x,y:c.y}); if(c.hist.length>22)c.hist.shift();
+    const dead=c.age>c.life||(!c.grav&&(c.x<-0.2||c.x>1.2||c.y<-0.2||c.y>1.2));
+    if(dead&&c.hist.length<3){COMETS.splice(i,1);continue;}
+    if(dead)c.hist.shift();
+    const fl=Math.min(1,(c.life-c.age)/1);
+    c.hist.forEach((h2,j)=>{const u=j/c.hist.length;
+      const ssz=(2+u*13)*MDPR;
+      actx.globalAlpha=Math.min(1,u*0.6*fl);
+      actx.drawImage(SPR[2],h2.x*MW-ssz/2,h2.y*MH-ssz/2,ssz,ssz);});
+    actx.globalAlpha=1;
+    /* เขี่ยฝูงข้างทาง */
+    if(!degrade)for(let k2=0;k2<P.length;k2+=3){const q=P[k2];
+      const dx=q.px-c.x,dy=q.py-c.y,d2=dx*dx+dy*dy;
+      if(d2<0.008){const d=Math.sqrt(d2)||0.01;
+        q.vx+=dx/d*0.0022; q.vy+=dy/d*0.0022;}}
+  }
+
+  /* ---- ฝูงอนุภาค ---- */
   const waveR=((t*(0.24+V*0.3))%1.6);
+  const chAmt=charging?charge:0;
   for(const q of P){
-    q.ang+=q.w*spin*(1+q.big*0.2);
+    q.ang+=q.w*spin*TS*(1+(q.big?0.2:0));
     const ca=Math.cos(q.ang), sa=Math.sin(q.ang), ci=Math.cos(q.incl), si=Math.sin(q.incl);
-    q.hx=CORE.cx+ca*q.orad;
-    q.hy=CORE.cy+sa*q.orad*ci*0.88;
-    q.zd=sa*si;                                        // ลึก/ตื้น จากระนาบวงโคจร
-    let ax=(q.hx-q.px)*0.07, ay=(q.hy-q.py)*0.07;
+    q.hx=CORE.cx+ca*q.orad; q.hy=CORE.cy+sa*q.orad*ci*0.88; q.zd=sa*si;
+    const fw=q.inForm?FORM.w:0;
+    let ax=((q.hx-q.px)*0.07)*(1-fw), ay=((q.hy-q.py)*0.07)*(1-fw);
+    if(fw>0.01){ax+=(q.tx+Math.sin(t*0.55+q.ph)*0.004-q.px)*0.06*fw;
+                ay+=(q.ty+Math.cos(t*0.5+q.ph)*0.004-q.py)*0.06*fw;
+                ax-=q.vx*0.12*fw; ay-=q.vy*0.12*fw;}
     const dxp=q.px-ptrX,dyp=q.py-ptrY,dp2=dxp*dxp+dyp*dyp;
-    if(dp2<0.015){const f=(0.015-dp2)*1.25/Math.max(0.05,Math.sqrt(dp2)); ax+=dxp*f; ay+=dyp*f;}
+    if(!charging&&dp2<0.015){const f=(0.015-dp2)*1.25/Math.max(0.05,Math.sqrt(dp2)); ax+=dxp*f; ay+=dyp*f;}
+    if(charging&&dp2<0.22){const d=Math.sqrt(dp2)||0.01;
+      ax-=dxp/d*0.0035*chAmt; ay-=dyp/d*0.0035*chAmt;
+      ax+=-dyp/d*0.0012*chAmt; ay+=dxp/d*0.0012*chAmt;}
     if(burst>0.02){const dxb=q.px-CORE.cx,dyb=q.py-CORE.cy,db=Math.max(0.06,Math.hypot(dxb,dyb));
       ax+=dxb/db*burst*0.06; ay+=dyb/db*burst*0.06;}
+    if(novaPull>0){const dxn=CORE.cx-q.px,dyn=CORE.cy-q.py;
+      ax+=dxn*novaPull*0.05; ay+=dyn*novaPull*0.05;}
+    if(storm>0.05){ax+=stormVec.x*0.0016*storm+Math.sin(q.py*9+t*4)*0.0006*storm;
+                   ay+=stormVec.y*0.0016*storm+Math.cos(q.px*8+t*4.4)*0.0006*storm;}
+    for(const s of SHOCKS){const dxs=q.px-s.x,dys=q.py-s.y,ds=Math.hypot(dxs,dys);
+      if(Math.abs(ds-s.r)<0.05){const f=0.011*s.power/(1+ds*2);
+        ax+=dxs/Math.max(0.03,ds)*f; ay+=dys/Math.max(0.03,ds)*f;}}
     if(V>0.05){const dxm=q.px-CORE.cx,dym=q.py-CORE.cy,dm=Math.max(0.05,Math.hypot(dxm,dym));
       const f=V*0.010*Math.exp(-dm*3.2)*Math.sin(t*20+dm*26);
       ax+=dxm/dm*f; ay+=dym/dm*f;}
+    if(quirkFn==='ripple'){const dm=Math.hypot(q.px-CORE.cx,q.py-CORE.cy);
+      const band=Math.exp(-Math.pow((dm-qAge*0.5)*8,2));
+      const dm2=Math.max(0.05,dm);
+      ax+=(q.px-CORE.cx)/dm2*band*0.004; ay+=(q.py-CORE.cy)/dm2*band*0.004;}
+    if(quirkFn==='glance'){ax+=(quirkT0%2?1:-1)*0.0009; ay-=0.0006;}
     q.vx=(q.vx+ax)*0.86; q.vy=(q.vy+ay)*0.86;
-    q.px+=q.vx; q.py+=q.vy;
-    const rx=(0.5+(q.px-0.5)*breath+sway*q.zd*0.6+driftX)*MW;
-    const ry=(0.47+(q.py-0.47)*breath+swayY*q.zd*0.6+driftY)*MH;
+    q.px+=q.vx*TS; q.py+=q.vy*TS;
+    const rx=(0.5+(q.px-0.5)*breath*sysScale+sway*q.zd*0.6+driftX)*MW;
+    const ry=(0.47+(q.py-0.47)*breath*sysScale+swayY*q.zd*0.6+driftY)*MH;
     const wave=Math.exp(-Math.pow((q.orad/CORE.r*0.32-waveR+0.32)*7,2));
     const tw=0.45+0.55*Math.sin(t*2.3+q.ph);
     const fade=Math.min(1,Math.max(0,(age-q.delay)/0.9));
     const depth=1+q.zd*0.32;
-    const near=Math.pow(Math.max(0,1-(q.orad/(CORE.r*3.7))),0.7);   // ใกล้แก่น = สว่าง
-    const al=Math.min(1,(0.14+q.lum*0.30+near*0.34)*depth*tw*(0.95+e*0.4+V*0.4))*asleep*fade+wave*0.4*fade;
-    const sz=(q.big?(4.6+q.lum*4.2):(0.9+q.lum*2.5+near*1.2))*depth*(1+wave*0.55+V*0.3)*MDPR;
-    mctx.globalAlpha=Math.min(1,al);
-    mctx.drawImage(SPR[q.lum>0.82?2:(q.lum>0.5?0:1)],rx-sz/2,ry-sz/2,sz,sz);
+    const near=Math.pow(Math.max(0,1-(q.orad/(CORE.r*3.7))),0.7);
+    let aur=0;
+    if(aurora>0){const d=Math.abs((q.px-0.5)*Math.cos(auroraAng)+(q.py-0.5)*Math.sin(auroraAng)+0.5-auroraPos);
+      aur=Math.exp(-Math.pow(d*9,2));}
+    const hiccup=quirkFn==='hiccup'&&((qAge<0.15)||(qAge>0.33&&qAge<0.48))?0.4:0;
+    const glowM=(0.8+0.4*mood.energy)+hiccup;
+    const al=Math.min(1,(0.14+q.lum*0.30+near*0.34+aur*0.5)*depth*tw*(0.95+e*0.4+V*0.4)*glowM)*asleep*fade*aComp+wave*0.4*fade*aComp;
+    const sz=(q.big?(4.6+q.lum*4.2):(0.9+q.lum*2.5+near*1.2))*depth*(1+wave*0.55+V*0.3+aur*0.5+fw*0.3)*MDPR;
+    actx.globalAlpha=Math.min(1,al);
+    actx.drawImage(SPR[q.lum>0.82?2:(q.lum>0.5?0:1)],rx-sz/2,ry-sz/2,sz,sz);
   }
-  mctx.globalAlpha=1;
+  actx.globalAlpha=1;
 
-  /* แก่น: ไส้แสง + เกลียววงจักร + สปาร์ค */
+  /* ชาร์จที่ปลายนิ้ว */
+  if(charging&&ptrX>-5){const gs=(24+90*charge)*MDPR;
+    actx.globalAlpha=0.3+0.55*charge;
+    actx.drawImage(SPR[2],ptrX*MW-gs/2,ptrY*MH-gs/2,gs,gs);
+    actx.globalAlpha=1;}
+
+  /* ---- blit หางแสง แล้ววาดแก่นคมทับ ---- */
+  mctx.clearRect(0,0,MW,MH);
+  mctx.drawImage(ACC,0,0);
+  mctx.globalCompositeOperation='lighter';
+  const halo=mctx.createRadialGradient(oc.x,oc.y,0,oc.x,oc.y,orbR*3.1);
+  halo.addColorStop(0,`hsla(${hue2},85%,60%,${(0.16+V*0.10)*asleep})`);
+  halo.addColorStop(0.45,`hsla(${hue2},85%,55%,${0.06*asleep})`);
+  halo.addColorStop(1,'hsla(0,0%,0%,0)');
+  mctx.fillStyle=halo; mctx.beginPath(); mctx.arc(oc.x,oc.y,orbR*3.1,0,7); mctx.fill();
   const cg=mctx.createRadialGradient(oc.x,oc.y,0,oc.x,oc.y,orbR*0.95);
-  cg.addColorStop(0,`hsla(${hue},96%,92%,${(0.75+V*0.25)*asleep})`);
-  cg.addColorStop(0.42,`hsla(${hue},92%,64%,${(0.30+V*0.2)*asleep})`);
+  cg.addColorStop(0,`hsla(${hue2},96%,92%,${(0.75+V*0.25)*asleep})`);
+  cg.addColorStop(0.42,`hsla(${hue2},92%,64%,${(0.30+V*0.2)*asleep})`);
   cg.addColorStop(1,'hsla(0,0%,0%,0)');
   mctx.fillStyle=cg; mctx.beginPath(); mctx.arc(oc.x,oc.y,orbR*0.95,0,7); mctx.fill();
+  const coreShake=storm>0.05?storm*5*MDPR:0;
   for(const th of THREADS){
     const rr=orbR*th.rr, rot=th.ph+t*2.1*th.sp*spin;
-    mctx.save(); mctx.translate(oc.x,oc.y); mctx.rotate(th.tilt+Math.sin(t*0.55+th.ph)*0.3);
+    mctx.save();
+    mctx.translate(oc.x+(coreShake?(Math.random()-0.5)*coreShake:0),
+                   oc.y+(coreShake?(Math.random()-0.5)*coreShake:0));
+    mctx.rotate(th.tilt+Math.sin(t*0.55+th.ph)*0.3);
     mctx.scale(1,th.sq);
-    mctx.strokeStyle=`hsla(${hue},94%,86%,${(0.20+0.26*Math.abs(Math.sin(rot)))*asleep})`;
+    mctx.strokeStyle=`hsla(${hue2},94%,86%,${(0.20+0.26*Math.abs(Math.sin(rot)))*asleep})`;
     mctx.lineWidth=1.1*MDPR;
     mctx.beginPath(); mctx.arc(0,0,rr,rot,rot+th.span); mctx.stroke();
     mctx.restore();
@@ -352,13 +608,12 @@ function renderMascot(e,hue){
     mctx.globalAlpha=0.85*asleep;
     mctx.drawImage(SPR[2],sx2-ssz/2,sy2-ssz/2,ssz,ssz);}
   mctx.globalAlpha=1;
-
-  /* zzz ตอนหลับ */
+  if(flash>0.02){mctx.fillStyle=`hsla(${hue2},60%,96%,${flash})`;
+    mctx.fillRect(0,0,MW,MH);}
   if(sleeping){for(let k=0;k<3;k++){const ph2=(t*0.35+k*0.33)%1;
     mctx.globalAlpha=(1-ph2)*0.5; const zs=(3+k)*MDPR;
     mctx.drawImage(SPR[0],(0.70+ph2*0.06)*MW,(0.22-ph2*0.10)*MH,zs,zs);}
     mctx.globalAlpha=1;}
-
   mctx.globalCompositeOperation='source-over';
 }
 
@@ -388,7 +643,7 @@ const stage=document.getElementById('stage');
 stage.addEventListener('click',()=>{ poke(); convo?stopConvo():startConvo(); });
 
 function draw(){
-  t+=0.0055; energy+=(target-energy)*0.08;
+  t+=0.0055*TS; energy+=(target-energy)*0.08;
   const e=Math.min(1,energy+0.10+Math.sin(t*2.1)*0.03)*(sleeping?0.35:1);
   const th=curState==='standby'?baseHue+Math.sin(t*0.6)*10:targetHue; curHue=lerpHue(curHue,th,0.05);
   const hue=curHue, root=document.documentElement.style;
