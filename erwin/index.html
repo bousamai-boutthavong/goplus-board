@@ -236,14 +236,10 @@ function seedOutline(outline,n,tag,ccx,ccy){
       vx:0,vy:0,ph:mhash(NODES.length*13+5)*6.283,
       delay:mhash(NODES.length*17+7)*1.1,
       z:0.72+0.62*Math.exp(-(((q.x-ccx)**2)+((q.y-ccy)**2))*4)});}}
-seedRegion(HEAD_O,430,'head',HEAD.cx,HEAD.cy,0.235);
-seedRegion(BODY_O,330,'body',0.5,0.605,0.185);
-seedRegion(ARM_L,48,'armL',0.235,0.565,0.10);
-seedRegion(ARM_R,48,'armR',0.765,0.565,0.10);
-seedOutline(HEAD_O,250,'head',HEAD.cx,HEAD.cy);
-seedOutline(BODY_O,200,'body',0.5,0.605);
-seedOutline(ARM_L,62,'armL',0.235,0.565);
-seedOutline(ARM_R,62,'armR',0.765,0.565);
+seedRegion(HEAD_O,950,'head',HEAD.cx,HEAD.cy,0.235);
+seedRegion(BODY_O,760,'body',0.5,0.605,0.185);
+seedRegion(ARM_L,150,'armL',0.235,0.565,0.10);
+seedRegion(ARM_R,150,'armR',0.765,0.565,0.10);
 
 /* glow sprites */
 const SPR=[[120,195,255],[60,145,250],[228,246,255]].map(([r,g,b])=>{
@@ -404,10 +400,8 @@ function renderMascot(e,hue){
     const tw=0.5+0.5*Math.sin(t*2.4+q.ph);
     const fade=Math.min(1,Math.max(0,(age-q.delay)/0.8));           // ค่อยๆ ติด (transparency ไล่เข้า)
     const body=Math.pow(1-q.rd,1.15);                                // แน่นกลาง จางขอบ
-    const al=q.edge
-      ? Math.min(1,(0.55+q.lum*0.40)*tw*(1+e*0.4+V*0.35))*asleep*fade+wave*0.5*fade
-      : Math.min(1,(0.22+body*0.68)*tw*(1+e*0.4+V*0.35))*asleep*fade+wave*0.45*fade;
-    const sz=(q.edge?(3.0+q.lum*3.2):(2.4+body*3.4))*(1+wave*0.5+V*0.25)*MDPR*(0.85+q.z*0.2);
+    const al=Math.min(1,(0.26+Math.pow(1-q.rd,0.72)*0.62)*tw*(1+e*0.4+V*0.35))*asleep*fade+wave*0.45*fade;
+    const sz=(2.0+Math.pow(1-q.rd,0.85)*3.0+q.lum*1.2)*(1+wave*0.5+V*0.25)*MDPR*(0.85+q.z*0.2);
     mctx.globalAlpha=Math.min(1,al);
     mctx.drawImage(SPR[q.lum>0.8?2:(q.lum>0.55?0:1)],rx2-sz/2,ry2-sz/2,sz,sz);
   }
