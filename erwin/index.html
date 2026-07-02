@@ -8,8 +8,8 @@
 <title>ERWIN</title>
 <style>
   :root{
-    --bg:#04050a; --ink:#eaf1f4; --hue:168;
-    --accent:hsl(168 78% 62%); --line:hsla(168,60%,60%,.20); --panel:rgba(10,14,20,.55);
+    --bg:#04050a; --ink:#eaf1f4; --hue:207;
+    --accent:hsl(207 85% 62%); --line:hsla(207,60%,60%,.20); --panel:rgba(10,14,20,.55);
     --mono:'SF Mono',ui-monospace,'JetBrains Mono',Menlo,Consolas,monospace;
     --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
   }
@@ -102,9 +102,9 @@
    ========================================================== */
 
 /* ---- โทนสีตามสถานะ ---- */
-const STATES={ standby:{hue:168,e:0.12}, listening:{hue:199,e:0.5}, thinking:{hue:275,e:0.62},
-  speaking:{hue:150,e:0.7}, recording:{hue:356,e:0.55}, vision:{hue:205,e:0.55} };
-let baseHue=168,targetHue=168,curHue=168,curState='standby';
+const STATES={ standby:{hue:207,e:0.12}, listening:{hue:186,e:0.5}, thinking:{hue:275,e:0.62},
+  speaking:{hue:158,e:0.7}, recording:{hue:356,e:0.55}, vision:{hue:222,e:0.55} };
+let baseHue=207,targetHue=207,curHue=207,curState='standby';
 const lerpHue=(a,b,t)=>{let d=((b-a+540)%360)-180;return (a+d*t+360)%360;};
 
 /* ==========================================================
@@ -131,7 +131,7 @@ const ring1=makeRing(150,0.55),ring2=makeRing(150,-1.0);
 function rotate(p,ca,sa,cb,sb){const x=p.x*ca-p.z*sa,z0=p.x*sa+p.z*ca,y=p.y*cb-z0*sb,z=p.y*sb+z0*cb;return{x,y,z};}
 
 /* ---- rig อารมณ์ — ทุกค่า ease เข้าหาเป้า (rigT) ---- */
-const rig ={blink:0,eyeHappy:0,eyeScale:1,browLift:0,browAsym:0,mouthCurve:.22,mouthOpen:0,
+const rig ={blink:0,eyeHappy:0,eyeScale:1,browLift:0,browAsym:0,mouthCurve:.30,mouthOpen:.12,
             gazeX:0,gazeY:0,awake:1,orbit:0,scanEyes:0};
 const rigT={...rig};
 const easeRig=()=>{for(const k in rig){rig[k]+=(rigT[k]-rig[k])*0.14;}};
@@ -165,7 +165,7 @@ addEventListener('pointermove',e=>lookAt(e.clientX,e.clientY),{passive:true});
 
 /* หน้าตาต่อสถานะ (Tamagotchi mood map) */
 function applyFace(st){
-  Object.assign(rigT,{eyeHappy:0,eyeScale:1,browLift:0,browAsym:0,mouthCurve:.22,mouthOpen:0,scanEyes:0,orbit:0});
+  Object.assign(rigT,{eyeHappy:0,eyeScale:1,browLift:0,browAsym:0,mouthCurve:.30,mouthOpen:.12,scanEyes:0,orbit:0});
   if(!sleeping) rigT.awake=1;
   if(st==='listening'){rigT.eyeScale=1.2;rigT.browLift=.55;rigT.mouthCurve=.32;rigT.gazeX=0;rigT.gazeY=0;}
   else if(st==='thinking'){rigT.gazeX=.55;rigT.gazeY=-.65;rigT.browAsym=.65;rigT.mouthCurve=.06;rigT.orbit=1;}
@@ -178,7 +178,9 @@ function applyFace(st){
 function glowPath(P,hue,alpha,width,close,dotEvery){
   if(P.length<2)return;
   ctx.beginPath(); P.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y)); if(close)ctx.closePath();
-  ctx.strokeStyle=`hsla(${hue},85%,65%,${alpha*0.22})`; ctx.lineWidth=width*4.5; ctx.stroke();
+  ctx.strokeStyle=`hsla(${hue},90%,60%,${alpha*0.12})`; ctx.lineWidth=width*9; ctx.stroke();
+  ctx.beginPath(); P.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y)); if(close)ctx.closePath();
+  ctx.strokeStyle=`hsla(${hue},88%,65%,${alpha*0.32})`; ctx.lineWidth=width*4.2; ctx.stroke();
   ctx.beginPath(); P.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y)); if(close)ctx.closePath();
   ctx.strokeStyle=`hsla(${hue},90%,80%,${alpha})`; ctx.lineWidth=width; ctx.stroke();
   for(let i=0;i<P.length;i+=dotEvery||3){const p=P[i];
@@ -191,80 +193,179 @@ function scatter(P,seed){ if(assemble>=1)return P; const a=assemble*assemble*(3-
   return P.map((p,i)=>{const h1=hash(i+seed),h2=hash(i*3+seed*7);
     return {x:p.x+(h1-0.5)*W*0.9*(1-a), y:p.y+(h2-0.5)*H*0.9*(1-a)};});}
 
-/* ---- สร้างเส้นโค้งหน้า จาก rig ---- */
+/* ---- ร่างเต็มตัว: ดาวน้อยสวมฮู้ด (chibi star) + ตาข่าย plexus + แท่นฉาย ---- */
+/* เส้นโค้งลื่นผ่านจุดคุม (Catmull-Rom · ปิดรูป) */
+function splineClosed(ctrl,samples){
+  const n=ctrl.length,out=[];
+  for(let i=0;i<samples;i++){
+    const f=i/samples*n, k=Math.floor(f), u=f-k;
+    const p0=ctrl[(k-1+n)%n],p1=ctrl[k%n],p2=ctrl[(k+1)%n],p3=ctrl[(k+2)%n];
+    const u2=u*u,u3=u2*u;
+    out.push({
+      x:0.5*((2*p1.x)+(-p0.x+p2.x)*u+(2*p0.x-5*p1.x+4*p2.x-p3.x)*u2+(-p0.x+3*p1.x-3*p2.x+p3.x)*u3),
+      y:0.5*((2*p1.y)+(-p0.y+p2.y)*u+(2*p0.y-5*p1.y+4*p2.y-p3.y)*u2+(-p0.y+3*p1.y-3*p2.y+p3.y)*u3)});
+  }
+  return out;
+}
+/* จุดคุมรูปร่าง (หน่วย = S · y ชี้ลง · จุดกำเนิด = กลางใบหน้า) */
+const BODY_CTRL=[
+  {x:0,y:-1.30},{x:0.42,y:-0.85},{x:0.98,y:-0.62},{x:0.55,y:-0.10},
+  {x:0.80,y:0.62},{x:0.38,y:0.85},{x:0.20,y:1.05},{x:0,y:0.92},
+  {x:-0.20,y:1.05},{x:-0.38,y:0.85},{x:-0.80,y:0.62},{x:-0.55,y:-0.10},
+  {x:-0.98,y:-0.62},{x:-0.42,y:-0.85}];
+const BODY_OUTLINE=splineClosed(BODY_CTRL,240);
+function inBody(x,y){ let inside=false;                 // ray-cast กับ outline มาตรฐาน
+  for(let i=0,j=BODY_OUTLINE.length-1;i<BODY_OUTLINE.length;j=i++){
+    const a=BODY_OUTLINE[i],b=BODY_OUTLINE[j];
+    if((a.y>y)!==(b.y>y) && x<(b.x-a.x)*(y-a.y)/(b.y-a.y)+a.x) inside=!inside;}
+  return inside;}
+/* โหนดตาข่ายภายในตัว + เส้นเชื่อมเพื่อนบ้าน (คำนวณครั้งเดียว) */
+const MESH_N=[],MESH_E=[];
+for(let i=0;i<400&&MESH_N.length<85;i++){
+  const x=(hash(i*3.7+1)*2-1)*1.05, y=hash(i*7.3+2)*2.5-1.4;
+  if(inBody(x,y)) MESH_N.push({x,y});}
+for(let i=0;i<MESH_N.length;i++){let deg=0;
+  for(let j=i+1;j<MESH_N.length&&deg<3;j++){
+    const dx=MESH_N[i].x-MESH_N[j].x,dy=MESH_N[i].y-MESH_N[j].y;
+    if(dx*dx+dy*dy<0.34*0.34){MESH_E.push([i,j]);deg++;}}}
+
 function facePaths(hue,e,t){
   const out=[];
   const wob=Math.sin(t*1.6)*0.012 + Math.sin(t*0.7)*0.008;            // หายใจ
-  const S=R*1.28*(1+e*0.05+wob+bounce*0.09)*(0.9+rig.awake*0.1);
-  const fx=CX+rig.gazeX*R*0.10, fy=CY+rig.gazeY*R*0.08+Math.sin(t*1.6)*R*0.012 + (sleeping?R*0.06:0);
-  const A =(rig.awake-0.18)/0.82, faceA=Math.max(0.12,A)* (0.75+e*0.35);
+  const S=R*1.05*(1+e*0.05+wob+bounce*0.09)*(0.92+rig.awake*0.08);
+  const fx=CX+rig.gazeX*R*0.06;
+  const fy=CY-R*0.15+Math.sin(t*1.6)*R*0.02 + (1-rig.awake)*S*0.30;   // หลับ = ร่างหย่อนลงหาแท่น
+  const A =(rig.awake-0.18)/0.82, faceA=Math.min(1,Math.max(0.14,A)*(0.92+e*0.35));
+  const waveAmt=Math.min(1, bounce*1.8 + (assemble<1&&assemble>0.55?(1-assemble)*2.2:0) + 0.05);
 
-  // โครงหน้า (วงรีเปิดคางเล็กน้อย = ดูเป็น "หัวโฮโลแกรม" ไม่ใช่ลูกโป่ง)
-  const head=[]; for(let i=0;i<=120;i++){const a=-Math.PI*0.5+ (i/120)*Math.PI*2;
-    const rx=S*1.02, ry=S*1.1*(1-(1-rig.awake)*0.06);
-    head.push({x:fx+Math.cos(a)*rx, y:fy+Math.sin(a)*ry});}
-  out.push({P:head,alpha:faceA*0.6,w:1.3*DPR,close:true,dot:4,seed:11});
+  /* -- แท่นฉายโฮโลแกรมบนพื้น + ลำแสง (วาดก่อน = อยู่หลังตัว) -- */
+  const padY=CY-R*0.15+S*1.38, sq=0.26, padA=0.5+e*0.3;
+  const beam=ctx.createLinearGradient(0,padY,0,padY-S*2.4);
+  beam.addColorStop(0,`hsla(${hue},85%,60%,${0.13*padA})`); beam.addColorStop(1,'hsla(0,0%,0%,0)');
+  ctx.fillStyle=beam; ctx.beginPath();
+  ctx.moveTo(CX-S*0.55,padY); ctx.lineTo(CX-S*0.95,padY-S*2.4);
+  ctx.lineTo(CX+S*0.95,padY-S*2.4); ctx.lineTo(CX+S*0.55,padY); ctx.closePath(); ctx.fill();
+  const cg=ctx.createRadialGradient(CX,padY,0,CX,padY,S*1.2);
+  cg.addColorStop(0,`hsla(${hue},85%,60%,${0.22*padA})`); cg.addColorStop(1,'hsla(0,0%,0%,0)');
+  ctx.save(); ctx.translate(CX,padY); ctx.scale(1,sq); ctx.fillStyle=cg;
+  ctx.beginPath(); ctx.arc(0,0,S*1.2,0,7); ctx.fill(); ctx.restore();
+  for(let k=0;k<3;k++){const rr=[1.15,0.82,0.50][k]*S, al=[0.5,0.32,0.26][k]*padA;
+    const ring=[]; for(let i=0;i<=90;i++){const a=(i/90)*Math.PI*2;
+      ring.push({x:CX+Math.cos(a)*rr, y:padY+Math.sin(a)*rr*sq});}
+    glowPath(ring,hue,al,1.1*DPR,true,6);}
+  ctx.strokeStyle=`hsla(${hue},85%,70%,${0.55*padA})`; ctx.lineWidth=1.3*DPR;
+  for(let i=0;i<24;i++){const a=(i/24)*Math.PI*2+t*0.5;
+    ctx.beginPath();
+    ctx.moveTo(CX+Math.cos(a)*S*1.06, padY+Math.sin(a)*S*1.06*sq);
+    ctx.lineTo(CX+Math.cos(a)*S*1.22, padY+Math.sin(a)*S*1.22*sq); ctx.stroke();}
 
-  // ตา 2 ข้าง
-  const eye=(sx,side)=>{
-    const exc=fx+sx*S*0.42+rig.gazeX*S*0.09, eyc=fy-S*0.16+rig.gazeY*S*0.07;
-    const er=S*0.17*rig.eyeScale;
-    const open=Math.max(0.04,(1-rig.blink)*(sleeping?0.06:1));
-    const P=[];
-    if(rig.eyeHappy>0.5){        // ตายิ้มโค้ง ∩
-      for(let i=0;i<=26;i++){const a=Math.PI+ (i/26)*Math.PI;
-        P.push({x:exc+Math.cos(a)*er, y:eyc+Math.sin(a)*er*0.85});}
-      out.push({P,alpha:faceA,w:1.7*DPR,close:false,dot:3,seed:23+side});
-    }else{
-      for(let i=0;i<=30;i++){const a=(i/30)*Math.PI*2;
-        P.push({x:exc+Math.cos(a)*er, y:eyc+Math.sin(a)*er*open});}
-      out.push({P,alpha:faceA,w:1.5*DPR,close:true,dot:3,seed:23+side});
-      if(open>0.35){              // รูม่านตา (ตาม gaze · โหมด vision กวาดซ้ายขวา)
-        const scan=rig.scanEyes>0.5?Math.sin(t*2.6)*0.5:0;
-        const px=exc+(rig.gazeX+scan)*er*0.42, py=eyc+rig.gazeY*er*0.34;
-        ctx.fillStyle=`hsla(${hue},95%,90%,${faceA})`;
-        ctx.beginPath(); ctx.arc(px,py,er*0.24,0,7); ctx.fill();
-        ctx.fillStyle=`hsla(${hue},60%,30%,${faceA*0.8})`;
-        ctx.beginPath(); ctx.arc(px+er*0.07,py-er*0.07,er*0.08,0,7); ctx.fill();
-      }
-    }
-    // คิ้ว
-    const bl=rig.browLift + (side?rig.browAsym*0.5:-rig.browAsym*0.2);
-    const B=[]; for(let i=0;i<=16;i++){const a=Math.PI*1.15+(i/16)*Math.PI*0.7;
-      B.push({x:exc+Math.cos(a)*er*1.55, y:eyc-er*0.55-bl*er*0.75+Math.sin(a)*er*0.62});}
-    out.push({P:B,alpha:faceA*0.75,w:1.4*DPR,close:false,dot:4,seed:31+side});
+  /* -- ตาข่าย plexus ภายในตัว (ระยิบเบาๆ) -- */
+  const mp=MESH_N.map((n,i)=>({
+    x:fx+(n.x+Math.sin(t*2.1+i*1.7)*0.012)*S,
+    y:fy+(n.y+Math.cos(t*1.7+i*2.3)*0.012)*S}));
+  ctx.strokeStyle=`hsla(${hue},80%,70%,${(0.10+e*0.05)*faceA})`; ctx.lineWidth=0.8*DPR;
+  for(const [i,j] of MESH_E){ctx.beginPath();ctx.moveTo(mp[i].x,mp[i].y);ctx.lineTo(mp[j].x,mp[j].y);ctx.stroke();}
+  ctx.fillStyle=`hsla(${hue},90%,82%,${0.5*faceA})`;
+  for(const q of mp){ctx.beginPath();ctx.arc(q.x,q.y,0.9*DPR,0,7);ctx.fill();}
+
+  /* -- เส้นขอบร่าง (ดาวฮู้ด+ตัว+ขา) -- */
+  const body=BODY_OUTLINE.map(q=>({x:fx+q.x*S, y:fy+q.y*S}));
+  out.push({P:body,alpha:faceA*0.95,w:1.7*DPR,close:true,dot:3,seed:11});
+
+  /* -- วงใบหน้าในฮู้ด -- */
+  const face=[]; for(let i=0;i<=90;i++){const a=(i/90)*Math.PI*2;
+    face.push({x:fx+Math.cos(a)*S*0.55, y:fy-S*0.28+Math.sin(a)*S*0.55});}
+  out.push({P:face,alpha:faceA*0.55,w:1.2*DPR,close:true,dot:4,seed:12});
+
+  /* -- ตา kawaii: ดำกลมโต + ประกาย 2 จุด -- */
+  const eye=(side)=>{
+    const ex=fx+side*S*0.24+rig.gazeX*S*0.05, ey=fy-S*0.34+rig.gazeY*S*0.04;
+    const er=S*0.165*rig.eyeScale, open=Math.max(0.05,(1-rig.blink)*(sleeping?0.07:1));
+    if(rig.eyeHappy>0.5){                                  // ตายิ้ม ∩
+      const P=[]; for(let i=0;i<=24;i++){const a=Math.PI+(i/24)*Math.PI;
+        P.push({x:ex+Math.cos(a)*er, y:ey+Math.sin(a)*er*0.85});}
+      out.push({P,alpha:faceA,w:2.0*DPR,close:false,dot:3,seed:23+side});
+      return;}
+    if(open<0.16){                                          // หลับตา = เส้นนอน
+      out.push({P:[{x:ex-er*0.8,y:ey},{x:ex+er*0.8,y:ey}],alpha:faceA*0.9,w:1.8*DPR,close:false,dot:1,seed:23+side});
+      return;}
+    const rx=er*0.92, ry=er*1.18*open;
+    const g=ctx.createRadialGradient(ex-rx*0.2,ey-ry*0.25,rx*0.1,ex,ey,rx*1.15);
+    g.addColorStop(0,`hsla(${hue},85%,34%,${0.95*faceA})`);
+    g.addColorStop(1,`hsla(${hue},90%,10%,${0.95*faceA})`);
+    ctx.fillStyle=g; ctx.beginPath(); ctx.ellipse(ex,ey,rx,ry,0,0,7); ctx.fill();
+    ctx.strokeStyle=`hsla(${hue},90%,80%,${faceA})`; ctx.lineWidth=1.4*DPR;
+    ctx.beginPath(); ctx.ellipse(ex,ey,rx,ry,0,0,7); ctx.stroke();
+    const gx=rig.gazeX*er*0.25, gy=rig.gazeY*er*0.2;
+    ctx.fillStyle=`hsla(0,0%,100%,${0.95*faceA})`;
+    ctx.beginPath(); ctx.arc(ex-rx*0.30+gx,ey-ry*0.30+gy,er*0.28,0,7); ctx.fill();
+    ctx.fillStyle=`hsla(0,0%,100%,${0.75*faceA})`;
+    ctx.beginPath(); ctx.arc(ex+rx*0.32+gx,ey+ry*0.34+gy,er*0.11,0,7); ctx.fill();
   };
-  eye(-1,0); eye(1,1);
+  eye(-1); eye(1);
 
-  // ปาก — โค้งยิ้ม + อ้าตามเสียง
-  const mw=S*0.6, my=fy+S*0.40, open=rig.mouthOpen*S*0.16;
-  // แกน y ของ canvas ชี้ลง → ยิ้ม (∪) = กลางปาก y มากกว่าขอบ
-  const curveY=x=>rig.mouthCurve*S*0.20*(1-Math.pow(2*x/mw,2));
-  const top=[],bot=[];
-  for(let i=0;i<=34;i++){const x=-mw/2+(i/34)*mw;
-    top.push({x:fx+x, y:my+curveY(x)-open*0.5});
-    bot.push({x:fx+x, y:my+curveY(x)*0.55+open*0.5});}
-  if(rig.mouthOpen>0.06){ out.push({P:top.concat(bot.slice().reverse()),alpha:faceA,w:1.6*DPR,close:true,dot:3,seed:41}); }
-  else out.push({P:top,alpha:faceA,w:1.7*DPR,close:false,dot:3,seed:41});
+  /* -- แก้มแดง (ถาวรแบบ kawaii · เข้มขึ้นตอนดีใจ) -- */
+  for(const side of[-1,1]){
+    ctx.fillStyle=`hsla(${hue},85%,78%,${(0.34+rig.eyeHappy*0.30)*faceA})`;
+    ctx.save(); ctx.translate(fx+side*S*0.43,fy-S*0.16); ctx.scale(1,0.55);
+    ctx.beginPath(); ctx.arc(0,0,S*0.085,0,7); ctx.fill(); ctx.restore();}
 
-  // แก้มตอนดีใจ
-  if(rig.eyeHappy>0.4){ for(const sx of[-1,1]){
-    ctx.fillStyle=`hsla(${hue},80%,70%,${faceA*0.5*rig.eyeHappy})`;
-    for(let i=0;i<5;i++){const a=hash(i*9+sx*3)*Math.PI*2,rr=hash(i*5+sx)*S*0.06;
-      ctx.beginPath(); ctx.arc(fx+sx*S*0.62+Math.cos(a)*rr, fy+S*0.14+Math.sin(a)*rr, 1.6*DPR,0,7); ctx.fill();}}}
+  /* -- ปาก: ยิ้มเปิดเล็กๆ (โตขึ้นตอนพูด/ดีใจ) -- */
+  const mw=S*(0.16+rig.mouthCurve*0.10+rig.mouthOpen*0.10);
+  const mh=S*(0.02+rig.mouthCurve*0.06+rig.mouthOpen*0.15);
+  const my=fy-S*0.02;
+  if(mh>S*0.035){
+    ctx.beginPath();
+    ctx.moveTo(fx-mw/2,my-rig.mouthCurve*S*0.02);
+    ctx.quadraticCurveTo(fx,my+mh*0.25,fx+mw/2,my-rig.mouthCurve*S*0.02);
+    ctx.quadraticCurveTo(fx,my+mh*2.1,fx-mw/2,my-rig.mouthCurve*S*0.02);
+    ctx.closePath();
+    ctx.fillStyle=`hsla(${hue},75%,10%,${0.9*faceA})`; ctx.fill();
+    ctx.strokeStyle=`hsla(${hue},90%,80%,${faceA})`; ctx.lineWidth=1.5*DPR; ctx.stroke();
+  }else{
+    const P=[]; for(let i=0;i<=20;i++){const x=-mw/2+(i/20)*mw;
+      P.push({x:fx+x, y:my+rig.mouthCurve*S*0.10*(1-Math.pow(2*x/mw,2))});}
+    out.push({P,alpha:faceA,w:1.7*DPR,close:false,dot:3,seed:41});
+  }
 
-  // ดาวบริวารตอนคิด (โคจรพร้อมหางเส้น)
+  /* -- ตรา B ที่อก + ปุ่มเล็ก -- */
+  const bx=fx, by=fy+S*0.42, br=S*0.15;
+  const scal=[]; for(let i=0;i<=64;i++){const a=(i/64)*Math.PI*2;
+    const rr=br*(1+0.10*Math.cos(a*8));
+    scal.push({x:bx+Math.cos(a)*rr,y:by+Math.sin(a)*rr});}
+  out.push({P:scal,alpha:faceA*0.8,w:1.2*DPR,close:true,dot:4,seed:51});
+  ctx.strokeStyle=`hsla(${hue},85%,75%,${0.5*faceA})`; ctx.lineWidth=1.0*DPR;
+  ctx.beginPath(); ctx.arc(bx,by,br*0.68,0,7); ctx.stroke();
+  ctx.fillStyle=`hsla(${hue},95%,86%,${faceA})`;
+  ctx.font=`600 ${Math.round(br*1.05)}px ${'"SF Mono",Menlo,monospace'}`;
+  ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('B',bx,by+br*0.04);
+  ctx.strokeStyle=`hsla(${hue},85%,75%,${0.5*faceA})`;
+  ctx.beginPath(); ctx.arc(fx+S*0.34,by-S*0.02,S*0.045,0,7); ctx.stroke();
+
+  /* -- แขนขวาโบกมือ (mitten) -- */
+  const shx=fx+S*0.50, shy=fy+S*0.05;
+  const aAng=-1.05+Math.sin(t*7)*0.5*waveAmt, len=S*0.55;
+  const hx=shx+Math.cos(aAng)*len, hy=shy+Math.sin(aAng)*len;
+  const arm=[]; for(let i=0;i<=14;i++){const u=i/14;
+    const cxp=shx+Math.cos(aAng*0.5)*len*0.5+S*0.10, cyp=shy+Math.sin(aAng*0.5)*len*0.5;
+    arm.push({x:(1-u)*(1-u)*shx+2*(1-u)*u*cxp+u*u*hx, y:(1-u)*(1-u)*shy+2*(1-u)*u*cyp+u*u*hy});}
+  out.push({P:arm,alpha:faceA*0.9,w:1.6*DPR,close:false,dot:3,seed:61});
+  const hand=[]; for(let i=0;i<=28;i++){const a=(i/28)*Math.PI*2;
+    hand.push({x:hx+Math.cos(a)*S*0.125,y:hy+Math.sin(a)*S*0.125*1.15});}
+  out.push({P:hand,alpha:faceA*0.95,w:1.5*DPR,close:true,dot:3,seed:62});
+
+  /* -- ดาวบริวารตอนคิด -- */
   if(rig.orbit>0.1){ for(let k=0;k<3;k++){
-    const oa=t*2.0+k*2.1, orx=S*1.35, ory=S*0.5, ox=fx+Math.cos(oa)*orx, oy=fy-S*0.85+Math.sin(oa)*ory;
-    const T=[]; for(let i=0;i<10;i++){const a2=oa-i*0.09; T.push({x:fx+Math.cos(a2)*orx,y:fy-S*0.85+Math.sin(a2)*ory});}
+    const oa=t*2.0+k*2.1, orx=S*1.15, ory=S*0.42, ox=fx+Math.cos(oa)*orx, oy=fy-S*1.05+Math.sin(oa)*ory;
+    const T=[]; for(let i=0;i<10;i++){const a2=oa-i*0.09; T.push({x:fx+Math.cos(a2)*orx,y:fy-S*1.05+Math.sin(a2)*ory});}
     glowPath(T,hue,0.3*rig.orbit,1.1*DPR,false,3);
     ctx.fillStyle=`hsla(${hue},95%,85%,${0.9*rig.orbit})`;
     ctx.beginPath(); ctx.arc(ox,oy,2.4*DPR,0,7); ctx.fill();}}
 
-  // เม็ด zzz ลอยตอนหลับ
+  /* -- เม็ด zzz ตอนหลับ -- */
   if(sleeping){ for(let k=0;k<3;k++){const ph=(t*0.35+k*0.33)%1;
     ctx.fillStyle=`hsla(${hue},70%,80%,${(1-ph)*0.5})`;
-    ctx.beginPath(); ctx.arc(fx+S*0.9+ph*S*0.3+Math.sin(ph*9)*S*0.05, fy-S*0.9-ph*S*0.8, (1.4+k*0.5)*DPR,0,7); ctx.fill();}}
+    ctx.beginPath(); ctx.arc(fx+S*1.0+ph*S*0.3+Math.sin(ph*9)*S*0.05, fy-S*1.1-ph*S*0.7, (1.4+k*0.5)*DPR,0,7); ctx.fill();}}
 
   return {paths:out, fx, fy, S, faceA};
 }
@@ -284,7 +385,7 @@ function draw(){
 
   // ออร่า
   const aur=ctx.createRadialGradient(CX,CY,0,CX,CY,Math.min(W,H)*0.72);
-  aur.addColorStop(0,`hsla(${hue},70%,50%,${0.10+e*0.13})`);aur.addColorStop(0.5,`hsla(${hue},70%,45%,${0.04+e*0.05})`);
+  aur.addColorStop(0,`hsla(${hue},75%,52%,${0.14+e*0.14})`);aur.addColorStop(0.5,`hsla(${hue},70%,45%,${0.04+e*0.05})`);
   aur.addColorStop(1,'hsla(0,0%,0%,0)'); ctx.fillStyle=aur; ctx.fillRect(0,0,W,H);
 
   // ฝุ่นดาว + วงแหวน (หลังหน้า)
@@ -309,10 +410,10 @@ function draw(){
   for(const seg of F.paths) glowPath(scatter(seg.P,seg.seed),hue,seg.alpha,seg.w,seg.close,seg.dot);
 
   // แถบสแกนโฮโลแกรม
-  const bandY=F.fy-F.S*1.2+((t*0.13)%1)*F.S*2.4;
+  const bandY=F.fy-F.S*1.55+((t*0.13)%1)*F.S*2.75;
   const band=ctx.createLinearGradient(0,bandY-5*DPR,0,bandY+5*DPR);
   band.addColorStop(0,'hsla(0,0%,0%,0)');band.addColorStop(0.5,`hsla(${hue},90%,75%,${0.045*F.faceA})`);band.addColorStop(1,'hsla(0,0%,0%,0)');
-  ctx.fillStyle=band; ctx.fillRect(F.fx-F.S*1.1,bandY-5*DPR,F.S*2.2,10*DPR);
+  ctx.fillStyle=band; ctx.fillRect(F.fx-F.S*1.3,bandY-5*DPR,F.S*2.6,10*DPR);
   ctx.restore();
 
   requestAnimationFrame(draw);
