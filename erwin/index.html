@@ -58,10 +58,10 @@
   body{background:radial-gradient(120% 95% at 50% 38%, #0d3166 0%, #071c42 45%, #020814 100%)}
   .stage{position:fixed;left:50%;top:43%;transform:translate(-50%,-50%);
     width:min(88vmin,600px);aspect-ratio:1;z-index:1;cursor:pointer}
-  .float{position:absolute;inset:0;animation:float 4.8s ease-in-out infinite;will-change:transform;
+  .float{position:absolute;inset:0;animation:float 3.8s ease-in-out infinite;will-change:transform;
     -webkit-mask-image:radial-gradient(closest-side,#000 50%,rgba(0,0,0,.6) 68%,transparent 92%);
     mask-image:radial-gradient(closest-side,#000 50%,rgba(0,0,0,.6) 68%,transparent 92%)}
-  @keyframes float{0%,100%{transform:translateY(0.6%)}50%{transform:translateY(-1.6%)}}
+  @keyframes float{0%,100%{transform:translateY(1.2%)}50%{transform:translateY(-2.4%)}}
   .glowb{position:absolute;left:50%;top:44%;width:80%;aspect-ratio:1;transform:translate(-50%,-50%);
     background:radial-gradient(closest-side,hsla(var(--hue),90%,62%,.35),hsla(var(--hue),90%,52%,.10) 55%,transparent 78%);
     filter:blur(8px);opacity:calc(.45 + var(--e,.12)*.8);animation:breathe 3.8s ease-in-out infinite;pointer-events:none}
@@ -188,8 +188,11 @@ const tintEl=document.querySelector('.tint');
 const mcv=document.createElement('canvas'); mcv.id='mcv'; tintEl.appendChild(mcv);
 const mctx=mcv.getContext('2d');
 let MW=0,MH=0;
+let MDPR=1;
 function sizeMascot(){const r=document.getElementById('stage').getBoundingClientRect();
-  MW=mcv.width=Math.max(2,r.width*DPR); MH=mcv.height=Math.max(2,r.height*DPR);
+  const vmin=Math.min(innerWidth||360,innerHeight||640);
+  MDPR=Math.min(DPR, vmin<520?1.5:2);                   // มือถือ: พิกเซลน้อยลงครึ่ง = ลื่นขึ้นมาก
+  MW=mcv.width=Math.max(2,r.width*MDPR); MH=mcv.height=Math.max(2,r.height*MDPR);
   mcv.style.width=r.width+'px'; mcv.style.height=r.height+'px';}
 addEventListener('resize',sizeMascot);
 
@@ -203,7 +206,7 @@ function buildParticles(){
   const og=oc.getContext('2d'); og.drawImage(img,0,0,G,G);
   const d=og.getImageData(0,0,G,G).data;
   const vmin=Math.min(innerWidth||360,innerHeight||640);
-  const TARGET=vmin<520?6000:10400;
+  const TARGET=vmin<520?4200:9200;
   const cand=[];
   for(let y=0;y<G;y+=1){for(let x=0;x<G;x+=1){
     const i=(y*G+x)*4, r=d[i],g=d[i+1],b=d[i+2];
@@ -225,7 +228,8 @@ function buildParticles(){
       P.push({hx:c.x,hy:c.y,
         px:0.5+(mhash(P.length*3+1)-0.5)*1.6, py:0.5+(mhash(P.length*7+2)-0.5)*1.6,
         vx:0,vy:0, lum:c.lum, ph:mhash(P.length*13+5)*6.283,
-        z:0.7+mhash(P.length*17+9)*0.6, r:c.r, g:c.g, b:c.b, rx:0, ry:0});
+        z:0.72+0.62*Math.exp(-((c.x-0.5)*(c.x-0.5)+(c.y-0.45)*(c.y-0.45))*3.2),
+        r:c.r, g:c.g, b:c.b, rx:0, ry:0});
     }}
   // เส้นใยเชื่อมเพื่อนบ้าน (คำนวณครั้งเดียวด้วย grid)
   const CELL=0.024, grid=new Map();
@@ -273,6 +277,9 @@ addEventListener('pointermove',ev=>{
   ptrX=(ev.clientX-r.left)/r.width; ptrY=(ev.clientY-r.top)/r.height;
 },{passive:true});
 addEventListener('pointerleave',()=>{ptrX=ptrY=-9});
+addEventListener('pointerup',()=>{ptrX=ptrY=-9});      // มือถือ: ยกนิ้ว = ปล่อยอนุภาคกลับ
+addEventListener('pointercancel',()=>{ptrX=ptrY=-9});
+addEventListener('touchend',()=>{ptrX=ptrY=-9},{passive:true});
 let burst=0;
 const oldPoke=poke;
 poke=function(){ oldPoke(); burst=1; };
@@ -305,9 +312,12 @@ function renderMascot(e,hue){
   mctx.globalCompositeOperation='lighter';
   const asleep=sleeping?0.35:1, live=sleeping?0.35:1;
   burst*=0.90;
-  const waveR=((t*(0.22+V*0.25))%1.5);
-  const sway=Math.sin(t*0.42)*0.020, swayY=Math.cos(t*0.31)*0.010;   // hologram หมุนพลิ้วช้าๆ
-  const breath=1+Math.sin(t*1.05)*0.007+V*0.012;
+  const waveR=((t*(0.30+V*0.25))%1.5);
+  const sway=Math.sin(t*0.42)*0.048+Math.sin(t*0.17)*0.022;          // เอียงซ้ายขวาชัดเจน (parallax)
+  const swayY=Math.cos(t*0.31)*0.024;
+  const breath=1+Math.sin(t*1.05)*0.016+V*0.014;                     // หายใจลึกเห็นชัด
+  const driftX=Math.sin(t*0.37)*0.020+Math.sin(t*0.13)*0.012;        // ลอยวนทั้งตัวตลอดเวลา
+  const driftY=Math.cos(t*0.29)*0.016+Math.sin(t*0.51)*0.008;
   // pass 1: ฟิสิกส์ + ตำแหน่งวาด (flow ไหลตลอดเวลา ไม่มีเฟรมไหนนิ่ง)
   for(const q of P){
     let ax=(q.hx-q.px)*0.05, ay=(q.hy-q.py)*0.05;
@@ -325,25 +335,25 @@ function renderMascot(e,hue){
     q.vx=(q.vx+ax)*0.86; q.vy=(q.vy+ay)*0.86;
     q.px+=q.vx; q.py+=q.vy;
     // ไหลพลิ้ว (flow field) + parallax ลึกตื้น + หายใจ
-    const fl=live*(0.0045+V*0.004);
-    const fx=Math.sin(t*0.9+q.hy*7+q.ph)*fl + Math.sin(t*0.5+q.hx*5)*fl*0.6;
-    const fy=Math.cos(t*0.8+q.hx*6+q.ph)*fl + Math.cos(t*0.6+q.hy*4)*fl*0.6;
-    q.rx=(0.5+(q.px+fx-0.5)*breath + sway*(q.z-1))*MW;
-    q.ry=(0.47+(q.py+fy-0.47)*breath + swayY*(q.z-1))*MH;
+    const fl=live*(0.0065+V*0.004);
+    const fx=Math.sin(t*0.9+q.hy*6.5)*fl + Math.sin(t*0.5+q.hx*4.5)*fl*0.6 + Math.sin(t*1.7+q.ph)*0.0012;
+    const fy=Math.cos(t*0.8+q.hx*5.5)*fl + Math.cos(t*0.6+q.hy*3.5)*fl*0.6 + Math.cos(t*1.9+q.ph)*0.0012;
+    q.rx=(0.5+(q.px+fx-0.5)*breath + sway*(q.z-1) + driftX)*MW;
+    q.ry=(0.47+(q.py+fy-0.47)*breath + swayY*(q.z-1) + driftY)*MH;
   }
   // pass 2: เส้นใย (path เดียว)
   mctx.beginPath();
   for(const [i,j] of EDGES){ mctx.moveTo(P[i].rx,P[i].ry); mctx.lineTo(P[j].rx,P[j].ry); }
   mctx.strokeStyle=`hsla(${hue},85%,78%,${(0.095+e*0.05+V*0.06)*asleep})`;
-  mctx.lineWidth=0.9*DPR; mctx.stroke();
+  mctx.lineWidth=0.9*MDPR; mctx.stroke();
   // pass 3: ดอท (glow sprite)
   for(const q of P){
     const dw=Math.hypot(q.hx-0.5,q.hy-0.47);
     const wave=Math.exp(-Math.pow((dw-waveR)*9,2));
-    const tw=0.55+0.45*Math.sin(t*2.2+q.ph);
+    const tw=0.42+0.58*Math.sin(t*2.6+q.ph);
     const rim=q.lum>0.55?1.3:1;                        // โครงเส้นสว่าง = เด่นสุด (คมแบบ JARVIS)
-    const al=Math.min(1,(0.32+q.lum*0.65)*rim*tw*(0.9+e*0.45+V*0.35)*asleep+wave*0.5);
-    const sz=(1.5+q.lum*4.1)*rim*(1+wave*0.6+e*0.2+V*0.3)*DPR*(0.85+q.z*0.25);
+    const al=Math.min(1,(0.32+q.lum*0.65)*rim*tw*(0.9+e*0.45+V*0.35)*asleep+wave*0.62);
+    const sz=(1.5+q.lum*4.1)*rim*(1+wave*0.6+e*0.2+V*0.3)*MDPR*(0.85+q.z*0.25);
     mctx.globalAlpha=al;
     mctx.drawImage(SPR[q.bk], q.rx-sz/2, q.ry-sz/2, sz, sz);
   }
