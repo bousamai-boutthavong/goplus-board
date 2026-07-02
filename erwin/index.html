@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
+<meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0">
+<title>ERWIN</title>
+<style>
+  :root{
+    --bg:#04050a; --ink:#eaf1f4; --hue:168;
+    --accent:hsl(168 78% 62%); --line:hsla(168,60%,60%,.20); --panel:rgba(10,14,20,.55);
+    --mono:'SF Mono',ui-monospace,'JetBrains Mono',Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;margin:0}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);overflow:hidden;user-select:none}
+  #orb{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0}
+
+  .wordmark{position:fixed;top:28px;left:50%;transform:translateX(-50%);z-index:3;
+       display:flex;align-items:center;gap:10px;font-family:var(--mono);letter-spacing:.42em;font-size:15px;font-weight:600}
+  .wordmark .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);
+       box-shadow:0 0 14px var(--accent);animation:blink 2.6s infinite;transition:background .6s,box-shadow .6s}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+
+  .bar{position:fixed;left:50%;transform:translateX(-50%);bottom:30px;z-index:4;display:flex;align-items:center;gap:9px}
+  .field{width:min(300px,44vw);display:flex;align-items:center;background:var(--panel);border:1px solid var(--line);
+         border-radius:16px;padding:11px 15px;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);transition:border-color .5s}
+  .field input{flex:1;background:none;border:0;outline:0;color:var(--ink);font-family:var(--sans);font-size:15px}
+  .btn{width:46px;height:46px;flex:0 0 auto;border-radius:14px;border:1px solid var(--line);background:var(--panel);color:var(--ink);
+       display:grid;place-items:center;cursor:pointer;transition:.18s,border-color .5s;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+  .btn:hover{border-color:var(--accent);color:var(--accent)}
+  .btn:active{transform:scale(.93)}
+  .btn svg{width:20px;height:20px}
+  .btn.mic.on{background:var(--accent);color:#04140c;border-color:var(--accent);box-shadow:0 0 20px var(--accent)}
+  .btn.rec.on{background:#ff5568;color:#fff;border-color:#ff5568;animation:pulseRec 1.1s infinite}
+  @keyframes pulseRec{0%,100%{box-shadow:0 0 16px rgba(255,85,104,.5)}50%{box-shadow:0 0 26px rgba(255,85,104,.85)}}
+
+  /* live vision */
+  .cam{position:fixed;inset:0;background:rgba(2,4,7,.92);z-index:20;display:grid;place-items:center;align-content:center;gap:18px;
+       backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+  .cam[hidden]{display:none}
+  .cam-frame{position:relative;border-radius:18px;overflow:hidden;border:1px solid var(--accent);
+       box-shadow:0 0 70px hsla(var(--hue),75%,50%,.3);line-height:0}
+  .cam-frame video{max-width:82vw;max-height:60vh;transform:scaleX(-1);display:block;background:#000}
+  .cam-frame .scan{position:absolute;left:0;right:0;height:2px;top:0;
+       background:linear-gradient(90deg,transparent,var(--accent),transparent);opacity:.7;animation:scan 3.2s linear infinite}
+  @keyframes scan{0%{top:0}100%{top:100%}}
+  .vbrk{position:absolute;width:26px;height:26px;border:2px solid var(--accent);opacity:.9}
+  .vbrk.tl{top:12px;left:12px;border-right:0;border-bottom:0}.vbrk.tr{top:12px;right:12px;border-left:0;border-bottom:0}
+  .vbrk.bl{bottom:12px;left:12px;border-right:0;border-top:0}.vbrk.br{bottom:12px;right:12px;border-left:0;border-top:0}
+  .live{position:absolute;top:14px;left:14px;width:9px;height:9px;border-radius:50%;background:#ff5568;box-shadow:0 0 12px #ff5568;animation:blink 1.3s infinite}
+  .cam-ctrl{display:flex;gap:14px}
+  .cam-note{font-size:12.5px;color:hsla(168,10%,62%,1);font-family:var(--sans);max-width:80vw;text-align:center;min-height:16px}
+</style>
+</head>
+<body>
+<canvas id="orb"></canvas>
+
+<div class="wordmark"><span class="dot"></span>ERWIN</div>
+
+<div class="bar">
+  <div class="field"><input id="field" type="text" placeholder="" autocomplete="off"></div>
+  <button class="btn" id="camBtn" title="เปิด Vision (กล้องสด)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L19 6a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.4"/></svg>
+  </button>
+  <button class="btn rec" id="recBtn" title="อัดเสียง">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="3.4" fill="currentColor" stroke="none"/></svg>
+  </button>
+  <button class="btn mic" id="mic" title="พูดกับ Erwin">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/></svg>
+  </button>
+  <button class="btn" id="send" title="ส่ง">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l16-8-6 16-3-7-7-1z"/></svg>
+  </button>
+</div>
+
+<div class="cam" id="cam" hidden>
+  <div class="cam-frame">
+    <video id="camVid" autoplay playsinline muted></video>
+    <div class="scan"></div>
+    <div class="vbrk tl"></div><div class="vbrk tr"></div><div class="vbrk bl"></div><div class="vbrk br"></div>
+    <div class="live"></div>
+  </div>
+  <div class="cam-ctrl">
+    <button class="btn" id="camShot" title="ให้ Erwin ดูตอนนี้">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
+    </button>
+    <button class="btn" id="camClose" title="ปิด Vision">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+  </div>
+  <div class="cam-note" id="camNote"></div>
+</div>
+
+<script>
+/* ==========================================================
+   ERWIN — minimal voice+vision assistant
+   เห็น(กล้อง) · ฟัง(ไมค์) · คิด(Claude จริงผ่าน local proxy /ask) · พูดตอบ(TTS)
+   ถ้าไม่มี proxy → ใช้สมองเดโม (offline) · ตอบเป็นเสียงไทยเสมอ
+   ========================================================== */
+
+/* ---- โทนสีตามสถานะ ---- */
+const STATES={ standby:{hue:168,e:0.12}, listening:{hue:199,e:0.5}, thinking:{hue:275,e:0.62},
+  speaking:{hue:150,e:0.7}, recording:{hue:356,e:0.55}, vision:{hue:205,e:0.55} };
+let baseHue=168,targetHue=168,curHue=168,curState='standby';
+const lerpHue=(a,b,t)=>{let d=((b-a+540)%360)-180;return (a+d*t+360)%360;};
+
+/* ==========================================================
+   ตัวตนโฮโลแกรม — Tamagotchi hologram (v2 · 2026-07-02)
+   หน้าจากจุด+เส้นต่อเนื่อง · กระพริบตา หายใจ มองตาม ยิ้ม คิด
+   ง่วง-หลับเอง จิ้มแล้วดีใจ · คงวงแหวน+ฝุ่นดาวแบบ JARVIS เดิม
+   ========================================================== */
+const cv=document.getElementById('orb'),ctx=cv.getContext('2d');
+let W,H,CX,CY,R,DPR;
+function resize(){DPR=Math.min(devicePixelRatio||1,2);
+  const vw=innerWidth||document.documentElement.clientWidth||360;
+  const vh=innerHeight||document.documentElement.clientHeight||640;   // กัน viewport=0 ใน embed/preview
+  W=cv.width=vw*DPR;H=cv.height=vh*DPR;cv.style.width=vw+'px';cv.style.height=vh+'px';
+  CX=W/2;CY=H*0.42;R=Math.min(W,H)*0.215;}
+addEventListener('resize',resize);resize();
+
+/* ---- ฝุ่นดาว + วงแหวน (มรดกจากลูกแก้วเดิม) ---- */
+const N=520,pts=[];
+for(let i=0;i<N;i++){const y=1-(i/(N-1))*2,r=Math.sqrt(1-y*y),th=Math.PI*(3-Math.sqrt(5))*i;
+  pts.push({x:Math.cos(th)*r,y,z:Math.sin(th)*r});}
+function makeRing(n,tilt){const a=[],ct=Math.cos(tilt),st=Math.sin(tilt);
+  for(let i=0;i<n;i++){const th=i/n*Math.PI*2,x=Math.cos(th),z=Math.sin(th);a.push({x,y:-z*st,z:z*ct});}return a;}
+const ring1=makeRing(150,0.55),ring2=makeRing(150,-1.0);
+function rotate(p,ca,sa,cb,sb){const x=p.x*ca-p.z*sa,z0=p.x*sa+p.z*ca,y=p.y*cb-z0*sb,z=p.y*sb+z0*cb;return{x,y,z};}
+
+/* ---- rig อารมณ์ — ทุกค่า ease เข้าหาเป้า (rigT) ---- */
+const rig ={blink:0,eyeHappy:0,eyeScale:1,browLift:0,browAsym:0,mouthCurve:.22,mouthOpen:0,
+            gazeX:0,gazeY:0,awake:1,orbit:0,scanEyes:0};
+const rigT={...rig};
+const easeRig=()=>{for(const k in rig){rig[k]+=(rigT[k]-rig[k])*0.14;}};
+let bounce=0;                       // แรงเด้งตอนถูกจิ้ม (สลายเอง)
+let assemble=0;                     // 0→1 ตอนเปิดหน้า: จุดกระจัดกระจายค่อยรวมร่าง
+let glitchAt=0;                     // จังหวะ hologram วูบ
+
+/* ---- ชีวิตประจำวันของน้อง: กระพริบ · เหม่อมอง · หลับเมื่อถูกทิ้ง ---- */
+let lastAlive=Date.now(), sleeping=false;
+function markAlive(){lastAlive=Date.now();
+  if(sleeping){sleeping=false; poke(0.6);} }          // ปลุก = ตื่นแบบดีใจนิดๆ
+function scheduleBlink(){ setTimeout(()=>{ if(rig.awake>0.6&&!sleeping){rigT.blink=1; setTimeout(()=>rigT.blink=0,130);} scheduleBlink(); },2200+Math.random()*3300); }
+scheduleBlink();
+setInterval(()=>{ // เหม่อมองรอบๆ ตอนว่าง (standby เท่านั้น)
+  if(curState==='standby'&&!sleeping&&Math.random()<0.6){rigT.gazeX=(Math.random()*2-1)*0.5;rigT.gazeY=(Math.random()*2-1)*0.3;}
+},2800);
+setInterval(()=>{ // ถูกทิ้งเกิน 45 วิ ใน standby → หลับ
+  const idle=Date.now()-lastAlive;
+  if(curState==='standby'&&idle>45000&&!sleeping){sleeping=true;rigT.awake=0.18;rigT.blink=1;rigT.mouthCurve=0.08;rigT.gazeX=0;rigT.gazeY=0;}
+},3000);
+function poke(power=1){ bounce=Math.min(1.2,bounce+power);       // จิ้ม → เด้ง + ตายิ้ม + ยิ้มกว้าง
+  rigT.eyeHappy=1; rigT.mouthCurve=1; markNow();
+  clearTimeout(poke._t); poke._t=setTimeout(()=>{applyFace(curState);},1300); }
+const markNow=()=>{lastAlive=Date.now(); if(sleeping){sleeping=false; rigT.awake=1; rigT.blink=0;}};
+
+/* มองตามนิ้ว/เมาส์ */
+function lookAt(px,py){ if(sleeping)return;
+  rigT.gazeX=Math.max(-1,Math.min(1,(px*DPR-CX)/(R*2.2)));
+  rigT.gazeY=Math.max(-1,Math.min(1,(py*DPR-(CY-R*0.1))/(R*2.2))); }
+addEventListener('pointermove',e=>lookAt(e.clientX,e.clientY),{passive:true});
+
+/* หน้าตาต่อสถานะ (Tamagotchi mood map) */
+function applyFace(st){
+  Object.assign(rigT,{eyeHappy:0,eyeScale:1,browLift:0,browAsym:0,mouthCurve:.22,mouthOpen:0,scanEyes:0,orbit:0});
+  if(!sleeping) rigT.awake=1;
+  if(st==='listening'){rigT.eyeScale=1.2;rigT.browLift=.55;rigT.mouthCurve=.32;rigT.gazeX=0;rigT.gazeY=0;}
+  else if(st==='thinking'){rigT.gazeX=.55;rigT.gazeY=-.65;rigT.browAsym=.65;rigT.mouthCurve=.06;rigT.orbit=1;}
+  else if(st==='speaking'){rigT.mouthCurve=.5;rigT.eyeHappy=.25;}
+  else if(st==='recording'){rigT.browLift=-.4;rigT.mouthCurve=.04;rigT.eyeScale=.9;}
+  else if(st==='vision'){rigT.scanEyes=1;rigT.eyeScale=1.12;rigT.browLift=.3;}
+}
+
+/* ---- เครื่องมือวาด: เส้นเรือง 2 ชั้น + จุดตามเส้น (dots + continuous line) ---- */
+function glowPath(P,hue,alpha,width,close,dotEvery){
+  if(P.length<2)return;
+  ctx.beginPath(); P.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y)); if(close)ctx.closePath();
+  ctx.strokeStyle=`hsla(${hue},85%,65%,${alpha*0.22})`; ctx.lineWidth=width*4.5; ctx.stroke();
+  ctx.beginPath(); P.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y)); if(close)ctx.closePath();
+  ctx.strokeStyle=`hsla(${hue},90%,80%,${alpha})`; ctx.lineWidth=width; ctx.stroke();
+  for(let i=0;i<P.length;i+=dotEvery||3){const p=P[i];
+    ctx.fillStyle=`hsla(${hue},95%,88%,${Math.min(1,alpha*1.25)})`;
+    ctx.beginPath(); ctx.arc(p.x,p.y,width*0.95,0,7); ctx.fill();}
+}
+/* จุดกระจัดกระจายตอน assemble (deterministic ต่อ index) */
+const hash=i=>{const s=Math.sin(i*127.1+311.7)*43758.5453; return s-Math.floor(s);};
+function scatter(P,seed){ if(assemble>=1)return P; const a=assemble*assemble*(3-2*assemble);
+  return P.map((p,i)=>{const h1=hash(i+seed),h2=hash(i*3+seed*7);
+    return {x:p.x+(h1-0.5)*W*0.9*(1-a), y:p.y+(h2-0.5)*H*0.9*(1-a)};});}
+
+/* ---- สร้างเส้นโค้งหน้า จาก rig ---- */
+function facePaths(hue,e,t){
+  const out=[];
+  const wob=Math.sin(t*1.6)*0.012 + Math.sin(t*0.7)*0.008;            // หายใจ
+  const S=R*1.28*(1+e*0.05+wob+bounce*0.09)*(0.9+rig.awake*0.1);
+  const fx=CX+rig.gazeX*R*0.10, fy=CY+rig.gazeY*R*0.08+Math.sin(t*1.6)*R*0.012 + (sleeping?R*0.06:0);
+  const A =(rig.awake-0.18)/0.82, faceA=Math.max(0.12,A)* (0.75+e*0.35);
+
+  // โครงหน้า (วงรีเปิดคางเล็กน้อย = ดูเป็น "หัวโฮโลแกรม" ไม่ใช่ลูกโป่ง)
+  const head=[]; for(let i=0;i<=120;i++){const a=-Math.PI*0.5+ (i/120)*Math.PI*2;
+    const rx=S*1.02, ry=S*1.1*(1-(1-rig.awake)*0.06);
+    head.push({x:fx+Math.cos(a)*rx, y:fy+Math.sin(a)*ry});}
+  out.push({P:head,alpha:faceA*0.6,w:1.3*DPR,close:true,dot:4,seed:11});
+
+  // ตา 2 ข้าง
+  const eye=(sx,side)=>{
+    const exc=fx+sx*S*0.42+rig.gazeX*S*0.09, eyc=fy-S*0.16+rig.gazeY*S*0.07;
+    const er=S*0.17*rig.eyeScale;
+    const open=Math.max(0.04,(1-rig.blink)*(sleeping?0.06:1));
+    const P=[];
+    if(rig.eyeHappy>0.5){        // ตายิ้มโค้ง ∩
+      for(let i=0;i<=26;i++){const a=Math.PI+ (i/26)*Math.PI;
+        P.push({x:exc+Math.cos(a)*er, y:eyc+Math.sin(a)*er*0.85});}
+      out.push({P,alpha:faceA,w:1.7*DPR,close:false,dot:3,seed:23+side});
+    }else{
+      for(let i=0;i<=30;i++){const a=(i/30)*Math.PI*2;
+        P.push({x:exc+Math.cos(a)*er, y:eyc+Math.sin(a)*er*open});}
+      out.push({P,alpha:faceA,w:1.5*DPR,close:true,dot:3,seed:23+side});
+      if(open>0.35){              // รูม่านตา (ตาม gaze · โหมด vision กวาดซ้ายขวา)
+        const scan=rig.scanEyes>0.5?Math.sin(t*2.6)*0.5:0;
+        const px=exc+(rig.gazeX+scan)*er*0.42, py=eyc+rig.gazeY*er*0.34;
+        ctx.fillStyle=`hsla(${hue},95%,90%,${faceA})`;
+        ctx.beginPath(); ctx.arc(px,py,er*0.24,0,7); ctx.fill();
+        ctx.fillStyle=`hsla(${hue},60%,30%,${faceA*0.8})`;
+        ctx.beginPath(); ctx.arc(px+er*0.07,py-er*0.07,er*0.08,0,7); ctx.fill();
+      }
+    }
+    // คิ้ว
+    const bl=rig.browLift + (side?rig.browAsym*0.5:-rig.browAsym*0.2);
+    const B=[]; for(let i=0;i<=16;i++){const a=Math.PI*1.15+(i/16)*Math.PI*0.7;
+      B.push({x:exc+Math.cos(a)*er*1.55, y:eyc-er*0.55-bl*er*0.75+Math.sin(a)*er*0.62});}
+    out.push({P:B,alpha:faceA*0.75,w:1.4*DPR,close:false,dot:4,seed:31+side});
+  };
+  eye(-1,0); eye(1,1);
+
+  // ปาก — โค้งยิ้ม + อ้าตามเสียง
+  const mw=S*0.6, my=fy+S*0.40, open=rig.mouthOpen*S*0.16;
+  // แกน y ของ canvas ชี้ลง → ยิ้ม (∪) = กลางปาก y มากกว่าขอบ
+  const curveY=x=>rig.mouthCurve*S*0.20*(1-Math.pow(2*x/mw,2));
+  const top=[],bot=[];
+  for(let i=0;i<=34;i++){const x=-mw/2+(i/34)*mw;
+    top.push({x:fx+x, y:my+curveY(x)-open*0.5});
+    bot.push({x:fx+x, y:my+curveY(x)*0.55+open*0.5});}
+  if(rig.mouthOpen>0.06){ out.push({P:top.concat(bot.slice().reverse()),alpha:faceA,w:1.6*DPR,close:true,dot:3,seed:41}); }
+  else out.push({P:top,alpha:faceA,w:1.7*DPR,close:false,dot:3,seed:41});
+
+  // แก้มตอนดีใจ
+  if(rig.eyeHappy>0.4){ for(const sx of[-1,1]){
+    ctx.fillStyle=`hsla(${hue},80%,70%,${faceA*0.5*rig.eyeHappy})`;
+    for(let i=0;i<5;i++){const a=hash(i*9+sx*3)*Math.PI*2,rr=hash(i*5+sx)*S*0.06;
+      ctx.beginPath(); ctx.arc(fx+sx*S*0.62+Math.cos(a)*rr, fy+S*0.14+Math.sin(a)*rr, 1.6*DPR,0,7); ctx.fill();}}}
+
+  // ดาวบริวารตอนคิด (โคจรพร้อมหางเส้น)
+  if(rig.orbit>0.1){ for(let k=0;k<3;k++){
+    const oa=t*2.0+k*2.1, orx=S*1.35, ory=S*0.5, ox=fx+Math.cos(oa)*orx, oy=fy-S*0.85+Math.sin(oa)*ory;
+    const T=[]; for(let i=0;i<10;i++){const a2=oa-i*0.09; T.push({x:fx+Math.cos(a2)*orx,y:fy-S*0.85+Math.sin(a2)*ory});}
+    glowPath(T,hue,0.3*rig.orbit,1.1*DPR,false,3);
+    ctx.fillStyle=`hsla(${hue},95%,85%,${0.9*rig.orbit})`;
+    ctx.beginPath(); ctx.arc(ox,oy,2.4*DPR,0,7); ctx.fill();}}
+
+  // เม็ด zzz ลอยตอนหลับ
+  if(sleeping){ for(let k=0;k<3;k++){const ph=(t*0.35+k*0.33)%1;
+    ctx.fillStyle=`hsla(${hue},70%,80%,${(1-ph)*0.5})`;
+    ctx.beginPath(); ctx.arc(fx+S*0.9+ph*S*0.3+Math.sin(ph*9)*S*0.05, fy-S*0.9-ph*S*0.8, (1.4+k*0.5)*DPR,0,7); ctx.fill();}}
+
+  return {paths:out, fx, fy, S, faceA};
+}
+
+/* ---- วงจรวาดหลัก ---- */
+let energy=0.12,target=0.12,t=0; const setTarget=v=>target=v;
+function draw(){
+  t+=0.0055; energy+=(target-energy)*0.08; bounce*=0.93; easeRig();
+  if(assemble<1) assemble=Math.min(1,assemble+0.012);
+  const e=Math.min(1,energy+0.10+Math.sin(t*2.1)*0.03)*(0.35+rig.awake*0.65);
+  if(curState==='speaking') rigT.mouthOpen=Math.max(0,Math.min(1,(energy-0.25)*1.9));
+  const th=curState==='standby'?baseHue+Math.sin(t*0.6)*12:targetHue; curHue=lerpHue(curHue,th,0.05);
+  const hue=curHue, root=document.documentElement.style;
+  root.setProperty('--hue',hue.toFixed(1)); root.setProperty('--accent',`hsl(${hue.toFixed(1)} 78% 62%)`);
+  root.setProperty('--line',`hsla(${hue.toFixed(1)},60%,60%,.20)`);
+  ctx.clearRect(0,0,W,H);
+
+  // ออร่า
+  const aur=ctx.createRadialGradient(CX,CY,0,CX,CY,Math.min(W,H)*0.72);
+  aur.addColorStop(0,`hsla(${hue},70%,50%,${0.10+e*0.13})`);aur.addColorStop(0.5,`hsla(${hue},70%,45%,${0.04+e*0.05})`);
+  aur.addColorStop(1,'hsla(0,0%,0%,0)'); ctx.fillStyle=aur; ctx.fillRect(0,0,W,H);
+
+  // ฝุ่นดาว + วงแหวน (หลังหน้า)
+  const ay=t*0.3,ax=Math.sin(t*0.4)*0.24,ca=Math.cos(ay),sa=Math.sin(ay),cb=Math.cos(ax),sb=Math.sin(ax);
+  const rad=R*1.95*(1+e*0.1);
+  const ringDraw=(rg,rr,base)=>{const pr=rg.map(p=>{const q=rotate(p,ca,sa,cb,sb),ps=1/(1.9-q.z*0.9);return{x:CX+q.x*rr*ps,y:CY+q.y*rr*ps};});
+    ctx.beginPath(); pr.forEach((q,i)=>i?ctx.lineTo(q.x,q.y):ctx.moveTo(q.x,q.y)); ctx.closePath();
+    ctx.strokeStyle=`hsla(${hue},80%,70%,${(base+e*0.2)*(0.4+rig.awake*0.6)})`; ctx.lineWidth=1.1; ctx.stroke();};
+  ringDraw(ring1,rad*0.92,0.10); ringDraw(ring2,rad*0.87,0.08);
+  for(const p of pts){const q=rotate(p,ca,sa,cb,sb),ps=1/(1.85-q.z*0.9),d=(q.z+1)/2;
+    ctx.fillStyle=`hsla(${hue},${55+d*30}%,${52+d*34}%,${(0.05+d*0.35)*(0.3+rig.awake*0.7)*(0.5+e*0.5)})`;
+    ctx.beginPath(); ctx.arc(CX+q.x*rad*ps,CY+q.y*rad*ps,(0.5+d*1.5)*ps,0,7); ctx.fill();}
+
+  // hologram วูบเป็นจังหวะ
+  let gx=0, gAlpha=1;
+  if(t>glitchAt){ glitchAt=t+0.03+ (0.06+Math.random()*0.09)*200*0.0055*10; } // ตั้งรอบถัดไปคร่าวๆ
+  if(((t*1000)|0)%6000<110 && !sleeping){ gx=(Math.random()-0.5)*6*DPR; gAlpha=0.82; }
+  ctx.save(); ctx.translate(gx,0); ctx.globalAlpha=gAlpha;
+
+  // หน้า
+  const F=facePaths(hue,e,t);
+  for(const seg of F.paths) glowPath(scatter(seg.P,seg.seed),hue,seg.alpha,seg.w,seg.close,seg.dot);
+
+  // แถบสแกนโฮโลแกรม
+  const bandY=F.fy-F.S*1.2+((t*0.13)%1)*F.S*2.4;
+  const band=ctx.createLinearGradient(0,bandY-5*DPR,0,bandY+5*DPR);
+  band.addColorStop(0,'hsla(0,0%,0%,0)');band.addColorStop(0.5,`hsla(${hue},90%,75%,${0.045*F.faceA})`);band.addColorStop(1,'hsla(0,0%,0%,0)');
+  ctx.fillStyle=band; ctx.fillRect(F.fx-F.S*1.1,bandY-5*DPR,F.S*2.2,10*DPR);
+  ctx.restore();
+
+  requestAnimationFrame(draw);
+}
+draw();
+
+/* ไมค์ขับลูกแก้ว (best-effort) */
+let analyser,micData;
+async function initMicMeter(){ if(analyser)return;
+  try{const s=await navigator.mediaDevices.getUserMedia({audio:true});const ac=new(window.AudioContext||window.webkitAudioContext)();
+    const src=ac.createMediaStreamSource(s);analyser=ac.createAnalyser();analyser.fftSize=256;micData=new Uint8Array(analyser.frequencyBinCount);src.connect(analyser);
+    (function m(){if(convo&&!isSpeaking){analyser.getByteTimeDomainData(micData);let s=0;for(let i=0;i<micData.length;i++){const v=(micData[i]-128)/128;s+=v*v;}
+      setTarget(0.35+Math.min(0.6,Math.sqrt(s/micData.length)*3.2));}requestAnimationFrame(m);})();
+  }catch(e){}
+}
+
+/* ---- สมอง ---- */
+/* สมองจริง: fetch /ask (proxy ท้องถิ่นถือ API key + คุย Claude). ถ้าไม่มี → สมองเดโม */
+function demoBrain(text){
+  const q=(text||'').toLowerCase(),has=(...a)=>a.some(w=>q.includes(w));
+  if(has('สวัสดี','หวัดดี','สบายดี','ສະບາຍດີ','hello','hi'))return 'สวัสดีครับบู้ — Erwin พร้อมแล้ว';
+  if(has('ชื่อ','คือใคร','ເຈົ້າແມ່ນໃຜ','who are you'))return 'ผม Erwin ครับ — ผู้ช่วยส่วนตัวของบู้';
+  if(has('ภารกิจ','mission'))return 'ภารกิจเรา: ลด SME failure rate ลาว จาก 80% เหลือ 30% ครับ';
+  return 'รับทราบครับบู้ — ตอนนี้ยังเป็นสมองเดโม เปิดผ่าน .command แล้วใส่ API key ผมจะคิดเต็มระบบทันที';
+}
+/* จำบทสนทนาทั้งชุด → ส่งประวัติไปทุกครั้ง (ต่อเนื่อง เชื่อมเรื่องก่อนหน้าได้) */
+const history=[];
+async function ask(userContent){
+  history.push({role:'user',content:userContent});
+  while(history.length>16) history.shift();
+  let reply=null;
+  try{
+    const r=await fetch('/ask',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({messages:history})});
+    if(r.ok){const j=await r.json(); if(j.reply) reply=j.reply;}
+  }catch(e){}
+  if(reply==null){
+    const txt=(userContent.find(c=>c.type==='text')||{}).text||'';
+    reply = userContent.some(c=>c.type==='image')
+      ? 'ผมเห็นภาพแล้วครับบู้ — เปิดผ่าน .command + ใส่ API key ผมจะบอกได้เลยว่านี่คืออะไร'
+      : demoBrain(txt);
+  }
+  // ลบภาพออกจากประวัติหลังใช้ (กันส่งซ้ำเปลืองโทเคน · แต่ยังจำว่าเคยส่งภาพ)
+  const u=history[history.length-1];
+  if(u && u.role==='user') u.content=u.content.map(c=> c.type==='image' ? {type:'text',text:'[บู้ส่งภาพให้ดู]'} : c);
+  history.push({role:'assistant',content:reply});
+  return reply;
+}
+
+/* ---- ปาก (พูดกลับ) — เสียงไทย โทนผู้บัญชาการ ---- */
+let voices=[],erwinVoice=null;
+function pickVoice(l){const th=l.filter(v=>v.lang.toLowerCase().startsWith('th'));
+  return th.length?(th.find(v=>/pattara|male|ชาย/i.test(v.name))||th.find(v=>/google/i.test(v.name))||th[0]):null;}
+function loadVoices(){voices=speechSynthesis.getVoices(); if(!erwinVoice)erwinVoice=pickVoice(voices);}
+loadVoices(); if(speechSynthesis.onvoiceschanged!==undefined)speechSynthesis.onvoiceschanged=loadVoices;
+// กวาดล้างสัญลักษณ์/markdown/emoji ก่อนพูด → กันเสียงอ่าน "ดอกจัน" ฯลฯ
+function speechClean(t){
+  return (t||'')
+    .replace(/```[\s\S]*?```/g,' ')            // โค้ดบล็อก
+    .replace(/`([^`]*)`/g,'$1')                // inline code
+    .replace(/!?\[([^\]]+)\]\([^)]*\)/g,'$1')  // ลิงก์ [ข้อความ](url) → ข้อความ
+    .replace(/[*_#>~|`]/g,' ')                 // ** _ # > ~ | ` (รวมดอกจัน)
+    .replace(/^\s*[-•·–]\s+/gm,'')             // หัวข้อ bullet
+    .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}]/gu,'') // emoji/สัญลักษณ์
+    .replace(/\s+/g,' ')
+    .trim();
+}
+// ตัดข้อความยาวเป็นท่อนสั้น → TTS พูดลื่น ไม่สะดุด/เอ๋อ
+function chunkText(t){
+  t=(t||'').replace(/\s+/g,' ').trim(); const max=140,out=[]; let i=0;
+  while(i<t.length){
+    let end=Math.min(i+max,t.length);
+    if(end<t.length){ const s=t.slice(i,end);
+      const b=Math.max(s.lastIndexOf(' '),s.lastIndexOf('·'),s.lastIndexOf('.'),s.lastIndexOf(','),s.lastIndexOf('ๆ'),s.lastIndexOf('!'),s.lastIndexOf('?'));
+      if(b>40) end=i+b+1; }
+    out.push(t.slice(i,end).trim()); i=end;
+  }
+  return out.filter(Boolean);
+}
+let currentAudio=null;
+const _resetState=()=> convo?'listening':(cam&&!cam.hidden?'vision':'standby');
+// เสียงในเครื่อง (fallback ถ้าไม่มี Azure)
+function browserSpeak(text, done){
+  try{
+    speechSynthesis.cancel();
+    const chunks=chunkText(text); let idx=0;
+    const next=()=>{ if(idx>=chunks.length){ done(); return; }
+      const u=new SpeechSynthesisUtterance(chunks[idx++]);
+      if(erwinVoice){u.voice=erwinVoice;u.lang=erwinVoice.lang;}else u.lang='th-TH';
+      u.rate=1.0; u.pitch=1.0; u.onend=next; u.onerror=next; speechSynthesis.speak(u);
+    };
+    setTimeout(done, Math.max(6000, text.length*120));   // backstop
+    next();
+  }catch(e){ done(); }
+}
+// พูด: ลองเสียงคลาวด์ Azure ก่อน → ไม่มี/พลาด → เสียงในเครื่อง
+async function speak(text){
+  text=speechClean(text);                                 // กันอ่าน "ดอกจัน"
+  try{speechSynthesis.cancel();}catch(e){}
+  if(currentAudio){ try{currentAudio.pause();}catch(e){} currentAudio=null; }
+  isSpeaking=true; try{recog&&recog.stop();}catch(e){}    // หยุดฟังตอนพูด
+  if(!text){ isSpeaking=false; busy=false; setState(_resetState()); return; }
+  setState('speaking');
+  const pulse=setInterval(()=>setTarget(0.5+Math.random()*0.3),140);
+  let d=false;
+  const done=()=>{ if(d)return; d=true; clearInterval(pulse); isSpeaking=false; busy=false;
+    setState(_resetState()); if(convo){ try{recog.start();}catch(e){} } };
+  try{
+    const r=await fetch('/tts',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({text})});
+    const ct=r.headers.get('content-type')||'';
+    if(r.ok && ct.indexOf('audio')>=0){
+      const blob=await r.blob();
+      if(blob.size>0){
+        const url=URL.createObjectURL(blob); const a=new Audio(url); currentAudio=a;
+        a.onended=()=>{ URL.revokeObjectURL(url); if(currentAudio===a)currentAudio=null; done(); };
+        a.onerror=()=>{ URL.revokeObjectURL(url); if(currentAudio===a)currentAudio=null; browserSpeak(text,done); };
+        setTimeout(done, Math.max(9000, text.length*170));   // backstop
+        a.play().catch(()=>browserSpeak(text,done));
+        return;
+      }
+    }
+  }catch(e){}
+  browserSpeak(text, done);   // fallback
+}
+
+/* ---- state ---- */
+function setState(st){const s=STATES[st]||STATES.standby;curState=st;baseHue=s.hue;targetHue=s.hue;setTarget(s.e);
+  applyFace(st); if(st!=='standby')markNow();}
+
+/* ---- วงจรหลัก ---- */
+const field=document.getElementById('field'),micBtn=document.getElementById('mic'),recBtn=document.getElementById('recBtn');
+async function handle(text){
+  text=(text||'').trim(); if(!text||busy)return; busy=true; markAlive(); setState('thinking');
+  const content=[{type:'text',text}];
+  const f=currentFrame();                       // ถ้ากล้องเปิดอยู่ → แนบภาพปัจจุบัน (เห็นจริง ไม่เดา)
+  if(f) content.unshift({type:'image',source:{type:'base64',media_type:'image/jpeg',data:f}});
+  const r=await ask(content); speak(r);
+}
+function submitField(){const v=field.value;field.value='';handle(v);}
+document.getElementById('send').onclick=submitField;
+field.addEventListener('keydown',e=>{if(e.key==='Enter')submitField();});
+
+/* ---- หู + โหมดสนทนาต่อเนื่อง (hands-free) — แตะครั้งเดียว แล้วคุยลอยๆ ---- */
+let inLang='th-TH', convo=false, isSpeaking=false, busy=false;
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition; let recog=null;
+if(SR){
+  recog=new SR(); recog.continuous=true; recog.interimResults=false; recog.lang=inLang;
+  recog.onresult=e=>{ if(busy||isSpeaking) return;
+    let txt=''; for(let i=e.resultIndex;i<e.results.length;i++){ if(e.results[i].isFinal) txt+=e.results[i][0].transcript; }
+    txt=txt.trim(); if(txt) handle(txt);
+  };
+  recog.onerror=()=>{};                              // no-speech ฯลฯ → ปล่อยให้ onend รีสตาร์ท
+  recog.onend=()=>{ if(convo&&!isSpeaking){ try{recog.start();}catch(e){} } };
+}
+function startConvo(){ if(!recog) return; convo=true; recog.lang=inLang;
+  micBtn.classList.add('on'); setState('listening'); initMicMeter(); try{recog.start();}catch(e){} }
+function stopConvo(){ convo=false; micBtn.classList.remove('on'); try{recog.stop();}catch(e){} setState('standby'); }
+micBtn.onclick=()=> convo?stopConvo():startConvo();
+cv.style.cursor='pointer';
+cv.addEventListener('click',e=>{ poke(); lookAt(e.clientX,e.clientY);      // จิ้มน้อง = ดีใจ + เริ่ม/หยุดสนทนา
+  convo?stopConvo():startConvo(); });
+
+/* ---- ตา (Vision กล้องสด) ---- */
+const cam=document.getElementById('cam'),camVid=document.getElementById('camVid'),camNote=document.getElementById('camNote');
+let camStream=null;
+// ดึงภาพเฟรมปัจจุบันจากกล้อง (ย่อขนาด กันเปลืองโทเคน) — คืน null ถ้ากล้องปิด
+function currentFrame(){
+  if(cam.hidden || !camStream || !camVid.videoWidth) return null;
+  const w=Math.min(720,camVid.videoWidth), h=Math.round(camVid.videoHeight*(w/camVid.videoWidth));
+  const c=document.createElement('canvas'); c.width=w; c.height=h;
+  const g=c.getContext('2d'); g.translate(w,0); g.scale(-1,1); g.drawImage(camVid,0,0,w,h);
+  return c.toDataURL('image/jpeg',0.8).split(',')[1];
+}
+async function openVision(){ cam.hidden=false; camNote.textContent=''; setState('vision');
+  try{ camStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'},audio:false}); camVid.srcObject=camStream;
+    if(!convo) startConvo();   // เปิดกล้อง = เริ่มฟัง+คุยได้เลย (เห็น+คุยไปพร้อมกัน จนกว่าจะปิดเอง)
+  }catch(e){ camNote.textContent='เปิดกล้องไม่ได้ — เปิดผ่าน .command (localhost) + อนุญาตกล้องครับ'; } }
+function closeVision(){ cam.hidden=true; if(camStream){camStream.getTracks().forEach(t=>t.stop());camStream=null;} if(curState==='vision')setState(convo?'listening':'standby'); }
+function grabFrame(){ if(!camStream){camNote.textContent='ยังไม่มีภาพจากกล้อง';return;}
+  handle('ช่วยดูสิ่งที่กล้องเห็นตอนนี้ให้หน่อยครับ นี่คืออะไร'); }   // ใช้ภาพปัจจุบันผ่าน handle
+document.getElementById('camBtn').onclick=()=> cam.hidden?openVision():closeVision();
+document.getElementById('camShot').onclick=grabFrame;
+document.getElementById('camClose').onclick=closeVision;
+
+/* ---- อัดเสียง ---- */
+let mediaRec=null,chunks=[];
+async function toggleRec(){
+  if(mediaRec&&mediaRec.state==='recording'){mediaRec.stop();return;}
+  try{
+    const s=await navigator.mediaDevices.getUserMedia({audio:true}); mediaRec=new MediaRecorder(s); chunks=[];
+    mediaRec.ondataavailable=e=>{if(e.data.size)chunks.push(e.data);};
+    mediaRec.onstop=()=>{ s.getTracks().forEach(t=>t.stop()); recBtn.classList.remove('on');
+      speak('อัดเสียงเก็บไว้ให้แล้วครับบู้ — พอต่อระบบถอดเทป ผมจะสรุปประเด็นให้อัตโนมัติ'); };
+    mediaRec.start(); recBtn.classList.add('on'); setState('recording');
+  }catch(e){}
+}
+recBtn.onclick=toggleRec;
+
+setState('standby');
+
+/* ---- เช็กว่าต่อ "สมองจริง (API)" แล้ว หรือยังเดโม → บอกที่จุดหน้า ERWIN ---- */
+(async()=>{
+  const dot=document.querySelector('.wordmark .dot'), wm=document.querySelector('.wordmark');
+  try{
+    const r=await fetch('/health',{cache:'no-store'});
+    if(r.ok){ const h=await r.json();
+      if(h.brain){ wm.title='สมองจริง (Claude) เชื่อมแล้ว · เสียง: '+(h.voice||'browser'); return; } }
+  }catch(e){}
+  dot.style.background='#8a8f98'; dot.style.boxShadow='none';   // เดโม = จุดเทา
+  wm.title='โหมดเดโม — เปิดผ่าน .command เพื่อใช้สมองจริง';
+})();
+</script>
+</body>
+</html>
