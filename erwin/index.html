@@ -199,11 +199,11 @@ function buildParticles(){
   const img=document.querySelector('img.mascot');
   if(!img.naturalWidth){ img.addEventListener('load',buildParticles,{once:true}); return; }
   sizeMascot();
-  const G=300, oc=document.createElement('canvas'); oc.width=G; oc.height=G;
+  const G=384, oc=document.createElement('canvas'); oc.width=G; oc.height=G;
   const og=oc.getContext('2d'); og.drawImage(img,0,0,G,G);
   const d=og.getImageData(0,0,G,G).data;
   const vmin=Math.min(innerWidth||360,innerHeight||640);
-  const TARGET=vmin<520?3000:5200;
+  const TARGET=vmin<520?6000:10400;
   const cand=[];
   for(let y=0;y<G;y+=1){for(let x=0;x<G;x+=1){
     const i=(y*G+x)*4, r=d[i],g=d[i+1],b=d[i+2];
@@ -225,15 +225,15 @@ function buildParticles(){
       P.push({hx:c.x,hy:c.y,
         px:0.5+(mhash(P.length*3+1)-0.5)*1.6, py:0.5+(mhash(P.length*7+2)-0.5)*1.6,
         vx:0,vy:0, lum:c.lum, ph:mhash(P.length*13+5)*6.283,
-        pre:`rgba(${c.r},${c.g},${c.b},`});
+        z:0.7+mhash(P.length*17+9)*0.6, r:c.r, g:c.g, b:c.b, rx:0, ry:0});
     }}
   // เส้นใยเชื่อมเพื่อนบ้าน (คำนวณครั้งเดียวด้วย grid)
   const CELL=0.024, grid=new Map();
   const key=(cx,cy)=>cx+':'+cy;
   P.forEach((q,i)=>{const cx=(q.hx/CELL)|0, cy=(q.hy/CELL)|0;
     const k=key(cx,cy); (grid.get(k)||grid.set(k,[]).get(k)).push(i);});
-  EDGES=[]; const R2=CELL*CELL*1.1;
-  P.forEach((q,i)=>{ if(EDGES.length>TARGET*0.75) return;
+  EDGES=[]; const EDGE_CAP=Math.min(3800,TARGET*0.55); const R2=CELL*CELL*1.1;
+  P.forEach((q,i)=>{ if(EDGES.length>EDGE_CAP) return;
     let links=0;
     const cx=(q.hx/CELL)|0, cy=(q.hy/CELL)|0;
     for(let ox=0;ox<=1&&links<2;ox++)for(let oy=(ox?-1:1);oy<=1&&links<2;oy+=2){
@@ -246,6 +246,26 @@ function buildParticles(){
 }
 buildParticles();
 
+/* glow-sprite ต่อกลุ่มสี (วาดเร็วกว่า arc มาก + ขอบคมกลางเรืองรอบ) */
+let SPR=[], sprReady=false;
+function buildSprites(){
+  const NB=18, acc=Array.from({length:NB},()=>({r:0,g:0,b:0,n:0}));
+  for(const q of P){const bk=Math.min(NB-1,(q.lum*NB)|0); q.bk=bk;
+    const a=acc[bk]; a.r+=q.r; a.g+=q.g; a.b+=q.b; a.n++;}
+  SPR=acc.map((a,i)=>{
+    const c=document.createElement('canvas'); c.width=c.height=32;
+    const g2=c.getContext('2d');
+    const r=a.n?a.r/a.n|0:120, gg=a.n?a.g/a.n|0:190, b=a.n?a.b/a.n|0:255;
+    const gr=g2.createRadialGradient(16,16,0,16,16,16);
+    gr.addColorStop(0,'rgba(255,255,255,1)');
+    gr.addColorStop(0.16,`rgba(${r},${gg},${b},0.98)`);
+    gr.addColorStop(0.42,`rgba(${r},${gg},${b},0.28)`);
+    gr.addColorStop(1,'rgba(0,0,0,0)');
+    g2.fillStyle=gr; g2.fillRect(0,0,32,32);
+    return c;});
+  sprReady=true;
+}
+
 /* นิ้ว/เมาส์ = สนามพลังผลัก (แตะแสงแล้วแสงหลบ) */
 let ptrX=-9, ptrY=-9;
 addEventListener('pointermove',ev=>{
@@ -253,27 +273,43 @@ addEventListener('pointermove',ev=>{
   ptrX=(ev.clientX-r.left)/r.width; ptrY=(ev.clientY-r.top)/r.height;
 },{passive:true});
 addEventListener('pointerleave',()=>{ptrX=ptrY=-9});
-let burst=0;                                   // แรงระเบิดตอนจิ้ม (สลายเอง)
+let burst=0;
 const oldPoke=poke;
 poke=function(){ oldPoke(); burst=1; };
 
+/* ---- เสียงขับอนุภาค (voice-reactive · เหมือนโฮโลแกรมจริง) ----
+   Azure TTS → ต่อ WebAudio Analyser อ่านคลื่นเสียงจริงเฟรมต่อเฟรม
+   Browser TTS → จับ event ขอบเขตคำ (boundary) = เต้นตามจังหวะพยางค์ */
+let voice=0, vAnalyser=null, vData=null, vActx=null;
+function hookAudioAnalyser(audioEl){
+  try{
+    vActx=vActx||new (window.AudioContext||window.webkitAudioContext)();
+    const src=vActx.createMediaElementSource(audioEl);
+    vAnalyser=vActx.createAnalyser(); vAnalyser.fftSize=64;
+    vData=new Uint8Array(vAnalyser.frequencyBinCount);
+    src.connect(vAnalyser); vAnalyser.connect(vActx.destination);
+  }catch(e){ vAnalyser=null; }
+}
+function voiceKick(v){ voice=Math.min(1.6, voice+v); }
+
 function renderMascot(e,hue){
   if(!built||!MW)return;
+  if(!sprReady)buildSprites();
+  // อ่านระดับเสียงจริง (ถ้ามี analyser)
+  if(vAnalyser&&isSpeaking){ vAnalyser.getByteFrequencyData(vData);
+    let s=0; for(let i=1;i<vData.length;i++)s+=vData[i];
+    voice=Math.max(voice, (s/vData.length/255)*2.0);}
+  voice*=0.90;
+  const V=curState==='speaking'?voice:voice*0.4;
   mctx.clearRect(0,0,MW,MH);
   mctx.globalCompositeOperation='lighter';
-  const asleep=sleeping?0.35:1;
-  const jAmp=(0.0016+e*0.0035)*asleep;         // ระยิบแรงขึ้นตอนคุย
-  const waveR=((t*0.22)%1.5);                  // คลื่นพลังงานวิ่งจากกลางตัว
+  const asleep=sleeping?0.35:1, live=sleeping?0.35:1;
   burst*=0.90;
-  // เส้นใย (วาดเป็น path เดียว = เร็ว)
-  mctx.beginPath();
-  for(const [i,j] of EDGES){
-    mctx.moveTo(P[i].px*MW,P[i].py*MH); mctx.lineTo(P[j].px*MW,P[j].py*MH);}
-  mctx.strokeStyle=`hsla(${hue},85%,78%,${(0.08+e*0.06)*asleep})`;
-  mctx.lineWidth=0.8*DPR; mctx.stroke();
-  // ดอท
+  const waveR=((t*(0.22+V*0.25))%1.5);
+  const sway=Math.sin(t*0.42)*0.020, swayY=Math.cos(t*0.31)*0.010;   // hologram หมุนพลิ้วช้าๆ
+  const breath=1+Math.sin(t*1.05)*0.007+V*0.012;
+  // pass 1: ฟิสิกส์ + ตำแหน่งวาด (flow ไหลตลอดเวลา ไม่มีเฟรมไหนนิ่ง)
   for(const q of P){
-    // สปริงกลับบ้าน + แรงผลักจากนิ้ว + burst
     let ax=(q.hx-q.px)*0.05, ay=(q.hy-q.py)*0.05;
     const dxp=q.px-ptrX, dyp=q.py-ptrY, dp2=dxp*dxp+dyp*dyp;
     if(dp2<0.016){const f=(0.016-dp2)*1.15/Math.max(0.05,Math.sqrt(dp2));
@@ -281,18 +317,37 @@ function renderMascot(e,hue){
     if(burst>0.02){const dxb=q.px-0.5, dyb=q.py-0.47;
       const db=Math.max(0.08,Math.hypot(dxb,dyb));
       ax+=dxb/db*burst*0.05; ay+=dyb/db*burst*0.05;}
+    // เสียงดันอนุภาคเป็นระลอกจากปาก (0.5,0.46) ขึ้นทั้งตัว
+    if(V>0.03){const dxm=q.px-0.50, dym=q.py-0.46;
+      const dm=Math.max(0.05,Math.hypot(dxm,dym));
+      const f=V*0.016*Math.exp(-dm*4.2)*Math.sin(t*22+dm*30);
+      ax+=dxm/dm*f; ay+=dym/dm*f - V*0.0012*Math.exp(-dm*3);}
     q.vx=(q.vx+ax)*0.86; q.vy=(q.vy+ay)*0.86;
     q.px+=q.vx; q.py+=q.vy;
-    // คลื่น + ระยิบ
+    // ไหลพลิ้ว (flow field) + parallax ลึกตื้น + หายใจ
+    const fl=live*(0.0045+V*0.004);
+    const fx=Math.sin(t*0.9+q.hy*7+q.ph)*fl + Math.sin(t*0.5+q.hx*5)*fl*0.6;
+    const fy=Math.cos(t*0.8+q.hx*6+q.ph)*fl + Math.cos(t*0.6+q.hy*4)*fl*0.6;
+    q.rx=(0.5+(q.px+fx-0.5)*breath + sway*(q.z-1))*MW;
+    q.ry=(0.47+(q.py+fy-0.47)*breath + swayY*(q.z-1))*MH;
+  }
+  // pass 2: เส้นใย (path เดียว)
+  mctx.beginPath();
+  for(const [i,j] of EDGES){ mctx.moveTo(P[i].rx,P[i].ry); mctx.lineTo(P[j].rx,P[j].ry); }
+  mctx.strokeStyle=`hsla(${hue},85%,78%,${(0.095+e*0.05+V*0.06)*asleep})`;
+  mctx.lineWidth=0.9*DPR; mctx.stroke();
+  // pass 3: ดอท (glow sprite)
+  for(const q of P){
     const dw=Math.hypot(q.hx-0.5,q.hy-0.47);
     const wave=Math.exp(-Math.pow((dw-waveR)*9,2));
     const tw=0.55+0.45*Math.sin(t*2.2+q.ph);
-    const jx=Math.sin(t*1.4+q.ph)*jAmp, jy=Math.cos(t*1.1+q.ph*1.7)*jAmp;
-    const al=Math.min(1,(0.38+q.lum*0.62)*tw*(0.85+e*0.5)*asleep+wave*0.55);
-    const sz=(0.7+q.lum*1.8)*(1+wave*0.8+e*0.25)*DPR;
-    mctx.fillStyle=q.pre+al.toFixed(3)+')';
-    mctx.beginPath(); mctx.arc((q.px+jx)*MW,(q.py+jy)*MH,sz,0,7); mctx.fill();
+    const rim=q.lum>0.55?1.3:1;                        // โครงเส้นสว่าง = เด่นสุด (คมแบบ JARVIS)
+    const al=Math.min(1,(0.32+q.lum*0.65)*rim*tw*(0.9+e*0.45+V*0.35)*asleep+wave*0.5);
+    const sz=(1.5+q.lum*4.1)*rim*(1+wave*0.6+e*0.2+V*0.3)*DPR*(0.85+q.z*0.25);
+    mctx.globalAlpha=al;
+    mctx.drawImage(SPR[q.bk], q.rx-sz/2, q.ry-sz/2, sz, sz);
   }
+  mctx.globalAlpha=1;
   mctx.globalCompositeOperation='source-over';
 }
 
@@ -431,7 +486,10 @@ function browserSpeak(text, done){
     const next=()=>{ if(idx>=chunks.length){ done(); return; }
       const u=new SpeechSynthesisUtterance(chunks[idx++]);
       if(erwinVoice){u.voice=erwinVoice;u.lang=erwinVoice.lang;}else u.lang='th-TH';
-      u.rate=1.0; u.pitch=1.0; u.onend=next; u.onerror=next; speechSynthesis.speak(u);
+      u.rate=1.0; u.pitch=1.0; u.onend=next; u.onerror=next;
+      u.onboundary=()=>voiceKick(0.75);               // เต้นตามจังหวะพยางค์
+      u.onstart=()=>voiceKick(0.6);
+      speechSynthesis.speak(u);
     };
     setTimeout(done, Math.max(6000, text.length*120));   // backstop
     next();
@@ -456,6 +514,7 @@ async function speak(text){
       const blob=await r.blob();
       if(blob.size>0){
         const url=URL.createObjectURL(blob); const a=new Audio(url); currentAudio=a;
+        hookAudioAnalyser(a);                          // อนุภาคเต้นตามคลื่นเสียงจริง
         a.onended=()=>{ URL.revokeObjectURL(url); if(currentAudio===a)currentAudio=null; done(); };
         a.onerror=()=>{ URL.revokeObjectURL(url); if(currentAudio===a)currentAudio=null; browserSpeak(text,done); };
         setTimeout(done, Math.max(9000, text.length*170));   // backstop
